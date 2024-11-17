@@ -16,6 +16,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
+	// y := ytdlp.YTDLP{}
+	// y.DownloadAudio("https://static.dodupy.dev/bot/soundboard/padasnieg.mp4")
+
 	bot(ctx)
 }
 

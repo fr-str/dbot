@@ -1,26 +1,25 @@
 package dbot
 
 import (
-	"bufio"
-	"encoding/binary"
+	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"strconv"
 
 	"dbot/pkg/config"
+	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
-	"layeh.com/gopus"
+	"github.com/pion/opus/pkg/oggreader"
 )
 
 type DBot struct {
 	*discordgo.Session
+	ytdlp.YTDLP
 }
 
 func Start(d *discordgo.Session) {
-	b := DBot{d}
+	b := DBot{Session: d}
 
 	d.AddHandler(b.Ready)
 	err := d.Open()
@@ -67,6 +66,13 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 }
 
 func (d *DBot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	var options struct {
+		Link string `opt:"link"`
+		Dupa int    `opt:"dupa"`
+	}
+
+	UnmarshalForm(i.ApplicationCommandData().Options, &options)
+
 	channel, err := d.getUserVC(s, i.GuildID, i.Member.User.ID)
 	if err != nil {
 		return err
@@ -77,9 +83,20 @@ func (d *DBot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		return err
 	}
 
+	meta, err := d.DownloadAudio(options.Link)
+	if err != nil {
+		return err
+	}
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("Playing %s", meta.Title),
+		},
+	})
+
 	vc.Speaking(true)
 	defer vc.Speaking(false)
-	err = playFromFile("./dupa.opus", vc.OpusSend)
+	err = playFromFile(meta.Filepath, vc.OpusSend)
 	if err != nil {
 		return err
 	}
@@ -87,77 +104,50 @@ func (d *DBot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) 
 	return nil
 }
 
-const (
-	channels  = 2
-	sampling  = 48000
-	frameSize = 960
-	maxBytes  = (frameSize * 2) * 2
-)
-
 func playFromFile(fileName string, vcChan chan<- []byte) error {
-	f, err := os.Open(fileName)
+	log.Debug("playFromFile", log.String("name", fileName))
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-i", fileName,
+		"-ar", "48000", // Sample rate for Opus
+		"-ac", "2", // Stereo
+		"-c:a", "libopus", // Opus codec
+		"-frame_duration", "20", // 20ms frames
+		"-vbr", "off", // Disable variable bitrate for consistent frame sizes
+		"-b:a", "64k", // Bitrate
+		"-application", "audio",
+		"-packet_loss", "0", // Disable packet loss prevention
+		"-f", "opus", // Force opus format
+		"pipe:1",
+	)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	cmd := exec.Command("ffmpeg", "-i", fileName, "-f", "s16le", "-ar", strconv.Itoa(sampling), "-ac", strconv.Itoa(channels), "pipe:1")
-	ffOut, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-
+	log.Info("playFromFile", log.String("cmd", cmd.String()))
 	err = cmd.Start()
 	if err != nil {
 		return err
 	}
-	defer cmd.Process.Kill()
 
-	pcm := make(chan []int16, 2)
-	defer close(pcm)
-
-	go func() {
-		err := sendPCM(vcChan, pcm)
-		if err != nil {
-			log.Error(err.Error())
-		}
-	}()
-
-	ffmpegBuf := bufio.NewReaderSize(ffOut, 1<<14)
-	for {
-		audioBuf := make([]int16, frameSize*channels)
-		err = binary.Read(ffmpegBuf, binary.LittleEndian, audioBuf)
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		select {
-		case pcm <- audioBuf:
-		}
-	}
-}
-
-func sendPCM(vcChan chan<- []byte, pcm <-chan []int16) error {
-	opusEnc, err := gopus.NewEncoder(sampling, channels, gopus.Audio)
+	reader, _, err := oggreader.NewWith(stdout)
 	if err != nil {
 		return err
 	}
-
 	for {
-		rec, ok := <-pcm
-		if !ok {
-			log.Debug("pcm closed")
-			return nil
-		}
-
-		opus, err := opusEnc.Encode(rec, frameSize, maxBytes)
+		page, _, err := reader.ParseNextPage()
 		if err != nil {
-			return err
+			if err != io.EOF {
+				log.Error("failed to parse page", log.Err(err))
+			}
+			break
 		}
 
-		vcChan <- opus
+		for _, frame := range page {
+			vcChan <- frame
+		}
 	}
+
+	// Wait for FFmpeg to finish
+	return cmd.Wait()
 }

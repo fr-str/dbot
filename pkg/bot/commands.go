@@ -18,6 +18,12 @@ var cmds = []*discordgo.ApplicationCommand{
 				Description: "dupa",
 				Required:    true,
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionInteger,
+				Name:        "dupa",
+				Description: "dupa",
+				Required:    true,
+			},
 		},
 	},
 }
