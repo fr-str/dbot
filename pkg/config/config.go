@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	TOKEN    = env.Get[string]("TOKEN")
+	TOKEN    = env.Get("TOKEN", "")
 	GUILD_ID = env.Get("GUILD_ID", "")
 
 	YTDLP_DOWNLOAD_DIR = env.Get("YTDLP_DOWNLOAD_DIR", filepath.Join(os.TempDir(), "dbot"))

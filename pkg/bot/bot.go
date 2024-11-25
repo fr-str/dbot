@@ -2,24 +2,27 @@ package dbot
 
 import (
 	"fmt"
-	"io"
-	"os/exec"
 
 	"dbot/pkg/config"
+	"dbot/pkg/player"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
-	"github.com/pion/opus/pkg/oggreader"
 )
 
 type DBot struct {
 	*discordgo.Session
 	ytdlp.YTDLP
+	Player *player.Player
+}
+
+func dbotErr(msg string, vars ...any) error {
+	return fmt.Errorf("dbot: "+msg+": ", vars...)
 }
 
 func Start(d *discordgo.Session) {
-	b := DBot{Session: d}
+	b := DBot{Session: d, Player: player.NewPlayer()}
 
 	d.AddHandler(b.Ready)
 	err := d.Open()
@@ -30,7 +33,7 @@ func Start(d *discordgo.Session) {
 	cmdHandlers := b.CommandHandlers()
 	d.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := cmdHandlers[i.ApplicationCommandData().Name]; ok {
-			err := h(s, i)
+			err := h(i)
 			if err != nil {
 				log.Error(err.Error())
 			}
@@ -43,6 +46,12 @@ func Start(d *discordgo.Session) {
 			panic(err)
 		}
 	}
+
+	go func() {
+		for err := range b.Player.ErrChan {
+			log.Error(err.Error())
+		}
+	}()
 }
 
 func (d *DBot) Ready(s *discordgo.Session, e *discordgo.Ready) {
@@ -65,89 +74,56 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 	return nil, nil
 }
 
-func (d *DBot) handlePlay(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	var options struct {
 		Link string `opt:"link"`
 		Dupa int    `opt:"dupa"`
 	}
 
-	UnmarshalForm(i.ApplicationCommandData().Options, &options)
+	err := UnmarshalOptions(i.ApplicationCommandData().Options, &options)
+	if err != nil {
+		return dbotErr("failed to parse args: %w", err)
+	}
 
-	channel, err := d.getUserVC(s, i.GuildID, i.Member.User.ID)
+	channel, err := d.getUserVC(d.Session, i.GuildID, i.Member.User.ID)
+	if err != nil {
+		return err
+	}
+	if channel == nil {
+		return dbotErr("user not in channel")
+	}
+
+	vc, err := d.ChannelVoiceJoin(i.GuildID, channel.ChannelID, false, false)
 	if err != nil {
 		return err
 	}
 
-	vc, err := s.ChannelVoiceJoin(i.GuildID, channel.ChannelID, false, false)
-	if err != nil {
-		return err
+	if d.Player.VC == nil {
+		d.Player.VC = vc
 	}
 
-	meta, err := d.DownloadAudio(options.Link)
-	if err != nil {
-		return err
-	}
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	err = d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("Playing %s", meta.Title),
+			Content: "added",
 		},
 	})
 
-	vc.Speaking(true)
-	defer vc.Speaking(false)
-	err = playFromFile(meta.Filepath, vc.OpusSend)
-	if err != nil {
-		return err
-	}
+	d.Player.Add(options.Link)
 
 	return nil
 }
 
-func playFromFile(fileName string, vcChan chan<- []byte) error {
-	log.Debug("playFromFile", log.String("name", fileName))
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
-		"-i", fileName,
-		"-ar", "48000", // Sample rate for Opus
-		"-ac", "2", // Stereo
-		"-c:a", "libopus", // Opus codec
-		"-frame_duration", "20", // 20ms frames
-		"-vbr", "off", // Disable variable bitrate for consistent frame sizes
-		"-b:a", "64k", // Bitrate
-		"-application", "audio",
-		"-packet_loss", "0", // Disable packet loss prevention
-		"-f", "opus", // Force opus format
-		"pipe:1",
-	)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
+func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
+	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "sadge",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if d.Player.VC != nil {
+		return d.Player.VC.Disconnect()
 	}
-
-	log.Info("playFromFile", log.String("cmd", cmd.String()))
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-
-	reader, _, err := oggreader.NewWith(stdout)
-	if err != nil {
-		return err
-	}
-	for {
-		page, _, err := reader.ParseNextPage()
-		if err != nil {
-			if err != io.EOF {
-				log.Error("failed to parse page", log.Err(err))
-			}
-			break
-		}
-
-		for _, frame := range page {
-			vcChan <- frame
-		}
-	}
-
-	// Wait for FFmpeg to finish
-	return cmd.Wait()
+	return nil
 }

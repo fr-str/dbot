@@ -26,7 +26,7 @@ var (
 //   - string
 //   - all int, uint variants.
 //   - int/string slices
-func UnmarshalForm(options []*discordgo.ApplicationCommandInteractionDataOption, dest any) error {
+func UnmarshalOptions(options []*discordgo.ApplicationCommandInteractionDataOption, dest any) error {
 	// check if dest is valid
 	rv := reflect.ValueOf(dest)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {

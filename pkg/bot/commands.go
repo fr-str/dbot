@@ -18,13 +18,11 @@ var cmds = []*discordgo.ApplicationCommand{
 				Description: "dupa",
 				Required:    true,
 			},
-			{
-				Type:        discordgo.ApplicationCommandOptionInteger,
-				Name:        "dupa",
-				Description: "dupa",
-				Required:    true,
-			},
 		},
+	},
+	{
+		Name:        "wypierdalaj",
+		Description: "bot wpierdala",
 	},
 }
 
@@ -42,10 +40,11 @@ func (d *DBot) ClearCmds(s *discordgo.Session) {
 	}
 }
 
-type cmdHandler = func(*discordgo.Session, *discordgo.InteractionCreate) error
+type cmdHandler = func(*discordgo.InteractionCreate) error
 
 func (d *DBot) CommandHandlers() map[string]cmdHandler {
 	return map[string]cmdHandler{
-		"play": d.handlePlay,
+		"play":        d.handlePlay,
+		"wypierdalaj": d.handleWypierdalaj,
 	}
 }

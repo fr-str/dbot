@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/matryer/is v1.4.1 // indirect
 	github.com/pion/opus v0.0.0-20240826153031-e8536fe9e4ca // indirect
 	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
