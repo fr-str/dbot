@@ -1,0 +1,14 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    queries: "query.sql"
+    schema: "schema.sql"
+    gen:
+      go:
+        package: "store"
+        out: "pkg/store"
+        overrides:
+          - db_type: "Aliases"
+            go_type: 
+              import: "dbot/pkg/db/types"
+              type: "Aliases"

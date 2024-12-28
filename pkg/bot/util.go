@@ -26,7 +26,7 @@ var (
 //   - string
 //   - all int, uint variants.
 //   - int/string slices
-func UnmarshalOptions(options []*discordgo.ApplicationCommandInteractionDataOption, dest any) error {
+func UnmarshalOptions(sess *discordgo.Session, options []*discordgo.ApplicationCommandInteractionDataOption, dest any) error {
 	// check if dest is valid
 	rv := reflect.ValueOf(dest)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
@@ -35,7 +35,7 @@ func UnmarshalOptions(options []*discordgo.ApplicationCommandInteractionDataOpti
 
 	for i := range options {
 		tagName := options[i].Name
-		fieldValue := options[i]
+		option := options[i]
 
 		rv := reflect.ValueOf(dest).Elem()
 		// find field for tag
@@ -58,20 +58,30 @@ func UnmarshalOptions(options []*discordgo.ApplicationCommandInteractionDataOpti
 		// parse and set value
 		switch field.Kind() {
 		case reflect.Slice:
-			sl := strings.Split(fieldValue.StringValue(), ",")
+			sl := strings.Split(option.StringValue(), ",")
 			err := fillSlice(field, sl)
 			if err != nil {
 				return err
 			}
 
+		case reflect.Struct:
+			switch field.Type().Name() {
+			case "Channel":
+				chPtr := (*discordgo.Channel)(unsafe.Pointer(field.UnsafeAddr()))
+				*chPtr = *option.ChannelValue(sess)
+			default:
+				log.Error("unknown type", log.String("type", field.Type().Name()))
+			}
+			// discordgo.Channel
+
 		case reflect.String:
-			field.SetString(fieldValue.StringValue())
+			field.SetString(option.StringValue())
 
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			field.SetInt(fieldValue.IntValue())
+			field.SetInt(option.IntValue())
 
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			field.SetUint(fieldValue.UintValue())
+			field.SetUint(option.UintValue())
 		}
 	}
 

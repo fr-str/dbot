@@ -6,3 +6,4 @@ go.work.sum
 .env
 
 tmp
+test.db*

@@ -7,6 +7,7 @@ import (
 	"github.com/fr-str/log"
 )
 
+// descryptions are requeired by Discord
 var cmds = []*discordgo.ApplicationCommand{
 	{
 		Name:        "play",
@@ -23,6 +24,24 @@ var cmds = []*discordgo.ApplicationCommand{
 	{
 		Name:        "wypierdalaj",
 		Description: "bot wpierdala",
+	},
+	{
+		Name:        "set-bot-channel",
+		Description: "sets channels for bot to work in",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "type",
+				Description: "type",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionChannel,
+				Name:        "channel",
+				Description: "channel",
+				Required:    true,
+			},
+		},
 	},
 }
 
@@ -44,7 +63,8 @@ type cmdHandler = func(*discordgo.InteractionCreate) error
 
 func (d *DBot) CommandHandlers() map[string]cmdHandler {
 	return map[string]cmdHandler{
-		"play":        d.handlePlay,
-		"wypierdalaj": d.handleWypierdalaj,
+		"play":            d.handlePlay,
+		"wypierdalaj":     d.handleWypierdalaj,
+		"set-bot-channel": d.mapChannel,
 	}
 }
