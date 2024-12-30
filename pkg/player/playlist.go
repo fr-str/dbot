@@ -29,6 +29,9 @@ func (l *list) add(link string) *Audio {
 	l.l.Lock()
 	l.list = append(l.list, Audio{Link: link})
 	ret := &l.list[len(l.list)-1]
+	if l.len() == 1 {
+		defer l.next()
+	}
 	l.l.Unlock()
 	return ret
 }
@@ -54,7 +57,7 @@ func (l *list) peek() *Audio {
 }
 
 func (l *list) more() bool {
-	return !(l.idx+1 >= len(l.list))
+	return !(l.idx >= len(l.list))
 }
 
 func (l *list) current() *Audio {

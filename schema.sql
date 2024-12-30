@@ -12,13 +12,13 @@ CREATE TABLE IF NOT EXISTS channels (
     ch_name TEXT NOT NULL,
     type TEXT NOT NULL 
 );
-
 CREATE UNIQUE INDEX IF NOT EXISTS guild_type on channels (gid,type);
 
 
 CREATE TABLE IF NOT EXISTS sounds (
-    url TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
     gid TEXT NOT NULL,
     aliases Aliases NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS url_gid ON sounds (url,gid);
 

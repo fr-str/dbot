@@ -22,6 +22,10 @@ var cmds = []*discordgo.ApplicationCommand{
 		},
 	},
 	{
+		Name:        "pause-play",
+		Description: "play pause",
+	},
+	{
 		Name:        "wypierdalaj",
 		Description: "bot wpierdala",
 	},
@@ -66,5 +70,6 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"play":            d.handlePlay,
 		"wypierdalaj":     d.handleWypierdalaj,
 		"set-bot-channel": d.mapChannel,
+		"pause-play":      d.handlePause,
 	}
 }

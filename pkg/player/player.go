@@ -26,14 +26,14 @@ func (t *Player) PlayPause() {
 		t.Lock()
 		t.paused = true
 		t.Playing.Store(false)
-		log.Debug("t.paused", log.Bool("paused", t.paused))
+		log.Trace("t.paused", log.Bool("paused", t.paused))
 		return
 	}
 
 	t.Playing.Store(true)
 	t.paused = false
 	t.Unlock()
-	log.Debug("t.paused", log.Bool("paused", t.paused))
+	log.Trace("t.paused", log.Bool("paused", t.paused))
 }
 
 type Player struct {
@@ -60,7 +60,7 @@ type Err struct {
 func NewPlayer() *Player {
 	p := &Player{
 		list:    newList(),
-		queue:   make(chan *Audio, 1),
+		queue:   make(chan *Audio, 1000),
 		ErrChan: make(chan Err),
 	}
 	go p.musicLoop()
@@ -70,14 +70,8 @@ func NewPlayer() *Player {
 }
 
 func (p *Player) Add(link string) {
-	a := p.list.add(link)
-	p.fetch(a)
-
+	p.list.add(link)
 	log.Debug("Add", log.Int("list.len", p.list.len()))
-	if p.list.len() == 1 {
-		p.list.next()
-	}
-
 	if p.paused {
 		p.PlayPause()
 	}
@@ -91,6 +85,7 @@ func (p *Player) PlaySound(link string) {
 
 func (p *Player) musicLoop() {
 	for a := range p.list.nextAudio {
+		log.Debug("list.nextAudio", log.JSON(a))
 		if len(a.Filepath) == 0 {
 			p.fetch(a)
 		}
@@ -100,6 +95,7 @@ func (p *Player) musicLoop() {
 			p.ErrChan <- p.playerErr("failed to play", err)
 		}
 
+		log.Trace("musicLoop", log.Bool("p.list.more()", p.list.more()))
 		if !p.list.more() {
 			p.PlayPause()
 		}
@@ -124,6 +120,7 @@ func (p *Player) soundLoop() {
 			p.ErrChan <- p.playerErr("failed to play", err)
 		}
 
+		log.Trace("soundLoop", log.Any("shouldUnpause", shouldUnpause))
 		if shouldUnpause {
 			p.PlayPause()
 		}

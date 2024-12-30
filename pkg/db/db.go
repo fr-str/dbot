@@ -12,6 +12,7 @@ import (
 	"dbot/pkg/store"
 
 	"github.com/fr-str/log"
+	"github.com/fr-str/log/level"
 	"modernc.org/sqlite"
 	_ "modernc.org/sqlite"
 )
@@ -21,9 +22,9 @@ func (s db) configure() {
 	s.w.SetConnMaxLifetime(0)
 	s.w.SetConnMaxIdleTime(0)
 
-	s.r.SetMaxOpenConns(100)
-	s.r.SetConnMaxLifetime(5 * time.Minute)
-	s.r.SetMaxIdleConns(2)
+	// s.r.SetMaxOpenConns(100)
+	// s.r.SetConnMaxLifetime(5 * time.Minute)
+	// s.r.SetMaxIdleConns(2)
 }
 
 func Connect(ctx context.Context, filename string, schema string) (*store.Queries, error) {
@@ -31,10 +32,10 @@ func Connect(ctx context.Context, filename string, schema string) (*store.Querie
 	if err != nil {
 		return nil, err
 	}
-	r, err := sql.Open("sqlite", filename)
-	if err != nil {
-		return nil, err
-	}
+	// r, err := sql.Open("sqlite", filename)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	// create tables
 	if _, err := w.ExecContext(ctx, schema); err != nil {
@@ -43,7 +44,6 @@ func Connect(ctx context.Context, filename string, schema string) (*store.Querie
 
 	d := db{
 		w: w,
-		r: r,
 	}
 	d.configure()
 	return store.New(d), nil
@@ -51,7 +51,6 @@ func Connect(ctx context.Context, filename string, schema string) (*store.Querie
 
 type db struct {
 	w *sql.DB
-	r *sql.DB
 }
 
 func (s db) ExecContext(ctx context.Context, sql string, args ...any) (sql.Result, error) {
@@ -91,6 +90,9 @@ func relaceConsecutiveSpaces(s string) string {
 }
 
 func logger(ctx context.Context, info string, query string, ts time.Time, args any, res sql.Result, err error) {
+	if !log.DefaultLogger.Logger.Enabled(ctx, level.Trace) {
+		return
+	}
 	timeSince := time.Since(ts).String()
 	query = strings.ReplaceAll(query, "\n", " ")
 	query = strings.ReplaceAll(query, "\t", " ")
@@ -117,5 +119,5 @@ func logger(ctx context.Context, info string, query string, ts time.Time, args a
 			return
 		}
 	}
-	log.InfoCtx(ctx, fmt.Sprintf("%s executed", info), meta...)
+	log.TraceCtx(ctx, fmt.Sprintf("%s executed", info), meta...)
 }

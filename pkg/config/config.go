@@ -12,6 +12,7 @@ var (
 	GUILD_ID = env.Get("GUILD_ID", "")
 
 	YTDLP_DOWNLOAD_DIR = env.Get("YTDLP_DOWNLOAD_DIR", filepath.Join(os.TempDir(), "dbot"))
+	COOKIE_PATH        = env.Get("COOKIE_PATH", "")
 )
 
 func init() {

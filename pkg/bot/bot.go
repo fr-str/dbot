@@ -21,9 +21,6 @@ type DBot struct {
 	ytdlp.YTDLP
 	// MusicPlayer is for plaing stuff from YT and others
 	MusicPlayer *player.Player
-
-	// SoundPlayer is for soundboard
-	SoundPlayer *player.Player
 }
 
 func dbotErr(msg string, vars ...any) error {
@@ -35,12 +32,13 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries) {
 		ctx:         ctx,
 		Session:     sess,
 		MusicPlayer: player.NewPlayer(),
-		SoundPlayer: player.NewPlayer(),
 		store:       db,
 	}
 
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()
+
+	d.StartScheduler()
 
 	err := sess.Open()
 	if err != nil {
@@ -59,7 +57,6 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries) {
 			var Err player.Err
 			select {
 			case Err = <-d.MusicPlayer.ErrChan:
-			case Err = <-d.SoundPlayer.ErrChan:
 			}
 
 			log.Error(Err.Err.Error())
@@ -145,24 +142,15 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 		return dbotErr("failed to parse args: %w", err)
 	}
 
-	channel, err := d.getUserVC(d.Session, i.GuildID, i.Member.User.ID)
+	err = d.connectVoice(i.GuildID, i.User.ID)
 	if err != nil {
 		return err
-	}
-
-	vc, err := d.ChannelVoiceJoin(i.GuildID, channel.ChannelID, false, false)
-	if err != nil {
-		return err
-	}
-
-	if d.MusicPlayer.VC == nil {
-		d.MusicPlayer.VC = vc
 	}
 
 	err = d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "added",
+			Content: fmt.Sprintf("added %s", options.Link),
 		},
 	})
 
@@ -181,7 +169,13 @@ func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
 	})
 
 	if d.MusicPlayer.VC != nil {
-		return d.MusicPlayer.VC.Disconnect()
+		err := d.MusicPlayer.VC.Disconnect()
+		if err != nil {
+			d.MusicPlayer.ErrChan <- player.Err{
+				GID: i.GuildID,
+				Err: err,
+			}
+		}
 	}
 
 	d.MusicPlayer = player.NewPlayer()
@@ -217,5 +211,17 @@ func (d *DBot) mapChannel(i *discordgo.InteractionCreate) error {
 		},
 	})
 
+	return nil
+}
+
+func (d *DBot) handlePause(i *discordgo.InteractionCreate) error {
+	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("paused %v", !d.MusicPlayer.Playing.Load()),
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+	d.MusicPlayer.PlayPause()
 	return nil
 }

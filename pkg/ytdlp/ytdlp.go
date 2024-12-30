@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"dbot/pkg/config"
 
@@ -18,10 +20,18 @@ const ytdlp = "yt-dlp"
 
 var audioDownloadCMD = []string{
 	"--no-simulate",
+	"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
 	"--print", "after_move:%(.{title,filepath,ext})j",
 	"-x",
 	"--audio-format",
 	"opus",
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
 
 type VideoMeta struct {
@@ -31,7 +41,6 @@ type VideoMeta struct {
 }
 
 func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
-	log.Debug("DownloadAudio", log.String("link", link))
 	cmd := exec.Command(ytdlp, append(audioDownloadCMD, link)...)
 	cmd.Dir = config.YTDLP_DOWNLOAD_DIR
 
@@ -41,7 +50,7 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 	cmd.Stderr = stderr
 
 	var meta VideoMeta
-	log.Info("DownloadAudio", log.String("cmd", cmd.String()))
+	log.Info("DownloadAudio", log.String("cmd", cmd.String()), log.String("link", link))
 	err := cmd.Run()
 	if err != nil {
 		b, _ := io.ReadAll(stderr)

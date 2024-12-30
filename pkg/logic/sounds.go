@@ -2,7 +2,10 @@ package logic
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"dbot/pkg/store"
@@ -11,13 +14,19 @@ import (
 	fuzzy "github.com/paul-mannino/go-fuzzywuzzy"
 )
 
+var ErrSoundNotFound = errors.New("sound not found")
+
 func FindSound(db *store.Queries, name string, gid string) (store.Sound, error) {
 	sounds, err := db.SelectSounds(context.Background(), gid)
 	if err != nil {
-		return store.Sound{}, err
+		return store.Sound{}, fmt.Errorf("db select failed: %w", err)
 	}
 
-	name = strings.ToLower(name)
+	name = strings.ToLower(strings.ReplaceAll(name, " ", ""))
+	if name == "sound" {
+		return randSound(sounds), nil
+	}
+
 	var fullSound store.Sound
 	var fullRatio int
 	var partialSound store.Sound
@@ -49,5 +58,11 @@ func FindSound(db *store.Queries, name string, gid string) (store.Sound, error) 
 		return partialSound, nil
 	}
 
-	return store.Sound{}, fmt.Errorf("sound '%s' not found", name)
+	return store.Sound{}, ErrSoundNotFound
+}
+
+func randSound(sounds []store.Sound) store.Sound {
+	randInt, _ := rand.Int(rand.Reader, big.NewInt(int64(len(sounds))))
+	log.Trace("randSound", log.Any("randInt", randInt))
+	return sounds[randInt.Int64()]
 }
