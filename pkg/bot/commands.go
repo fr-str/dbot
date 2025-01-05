@@ -30,6 +30,27 @@ var cmds = []*discordgo.ApplicationCommand{
 		Description: "bot wpierdala",
 	},
 	{
+		Name:        "sound",
+		Description: "list all or add new sound",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "link",
+				Description: "link to audio",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "aliases",
+				Description: "triggers for sound",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionAttachment,
+				Name:        "file",
+				Description: "file",
+			},
+		},
+	},
+	{
 		Name:        "set-bot-channel",
 		Description: "sets channels for bot to work in",
 		Options: []*discordgo.ApplicationCommandOption{
@@ -69,7 +90,8 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 	return map[string]cmdHandler{
 		"play":            d.handlePlay,
 		"wypierdalaj":     d.handleWypierdalaj,
-		"set-bot-channel": d.mapChannel,
+		"set-bot-channel": d.handleMapChannel,
 		"pause-play":      d.handlePause,
+		"sound":           d.handleSound,
 	}
 }

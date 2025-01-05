@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"strings"
+	"time"
 
 	"dbot/pkg/logic"
 
@@ -14,17 +16,22 @@ import (
 
 func (d *DBot) RegisterEventListiners() {
 	cmdHandlers := d.CommandHandlers()
-	d.AddHandler(commands(cmdHandlers))
+	d.AddHandler(d.commands(cmdHandlers))
 	d.AddHandler(d.Ready)
 	d.AddHandler(d.messages)
 }
 
-func commands(cmdHandlers map[string]func(*discordgo.InteractionCreate) error) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate) error) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	return func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := cmdHandlers[i.ApplicationCommandData().Name]; ok {
 			err := h(i)
 			if err != nil {
 				log.Error(err.Error())
+
+				d.message(channelMessage{
+					chid:    i.ChannelID,
+					content: err.Error(),
+				})
 			}
 		}
 	}
@@ -48,7 +55,7 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 
 	log.Debug("sound all", log.String("msg", m.Content))
 
-	sounds, err := d.store.SelectSounds(d.ctx, m.GuildID)
+	sounds, err := d.Store.SelectSounds(d.Ctx, m.GuildID)
 	if err != nil {
 		log.Error(err.Error())
 		return
@@ -104,7 +111,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 	log.Debug("isKnownSound", log.String("msg", m.Content))
 	m.Content = strings.ToLower(strings.ReplaceAll(m.Content, " ", ""))
-	sound, err := logic.FindSound(d.store, m.Content, m.GuildID)
+	sound, err := logic.FindSound(d.Store, m.Content, m.GuildID)
 	if err != nil {
 		if !errors.Is(err, logic.ErrSoundNotFound) {
 			log.Info("failed to find sound", log.Err(err))
@@ -118,5 +125,17 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 		return
 	}
 
-	d.MusicPlayer.PlaySound(sound.Url)
+	bucket, key, found := strings.Cut(sound.Url, ",")
+	if !found {
+		log.Warn(fmt.Sprintf("could not find separator in link '%s'", sound.Url))
+		return
+	}
+	url, err := d.MinIO.PresignedGetObject(d.Ctx, bucket, key, 5*time.Hour, url.Values{})
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
+
+	log.Trace("[dupa]", log.Any("o.String()", url.String()))
+	d.MusicPlayer.PlaySound(url.String())
 }

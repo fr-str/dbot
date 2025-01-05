@@ -69,6 +69,10 @@ func UnmarshalOptions(sess *discordgo.Session, options []*discordgo.ApplicationC
 			case "Channel":
 				chPtr := (*discordgo.Channel)(unsafe.Pointer(field.UnsafeAddr()))
 				*chPtr = *option.ChannelValue(sess)
+			case "MessageAttachment":
+				idPtr := (*string)(unsafe.Pointer(field.FieldByName("ID").UnsafeAddr()))
+				*idPtr = option.Value.(string)
+
 			default:
 				log.Error("unknown type", log.String("type", field.Type().Name()))
 			}

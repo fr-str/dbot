@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 
 	schema "dbot"
+	dbot "dbot/pkg/bot"
 	"dbot/pkg/db"
-	"dbot/pkg/store"
+	"dbot/pkg/minio"
 )
 
 func main() {
@@ -18,12 +20,21 @@ func main() {
 		panic(err)
 	}
 
+	minIO, _ := minio.NewMinioStore(ctx)
+
+	d := dbot.DBot{
+		Ctx:   ctx,
+		Store: db,
+		MinIO: minIO,
+	}
+
 	for k, v := range parse() {
-		_, err := db.AddSound(ctx, store.AddSoundParams{
-			Gid:     "438758201916129281",
-			Url:     k,
-			Aliases: v,
-		})
+		params := dbot.SaveSoundParams{
+			GID:     "438758201916129281",
+			Link:    k,
+			Aliases: strings.Join(v, ","),
+		}
+		err := d.SaveSound(params)
 		if err != nil {
 			panic(err)
 		}

@@ -13,6 +13,12 @@ var (
 
 	YTDLP_DOWNLOAD_DIR = env.Get("YTDLP_DOWNLOAD_DIR", filepath.Join(os.TempDir(), "dbot"))
 	COOKIE_PATH        = env.Get("COOKIE_PATH", "")
+
+	// minio
+	MINIO_HOST              = env.Get[string]("MINIO_HOST")
+	MINIO_ACCESS_KEY_ID     = env.Get[string]("MINIO_ACCESS_KEY_ID")
+	MINIO_SECRET_ACCESS_KEY = env.Get[string]("MINIO_SECRET_ACCESS_KEY")
+	MINIO_DBOT_BUCKET_NAME  = env.Get("MINIO_DBOT_BUCKET_NAME", "dbot")
 )
 
 func init() {

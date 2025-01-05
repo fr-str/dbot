@@ -2,7 +2,10 @@ package dbot
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"dbot/pkg/config"
 	"dbot/pkg/player"
@@ -11,11 +14,14 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
+	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
 )
 
 type DBot struct {
-	ctx   context.Context
-	store *store.Queries
+	Ctx   context.Context
+	Store *store.Queries
+	MinIO *minio.Client
 
 	*discordgo.Session
 	ytdlp.YTDLP
@@ -27,12 +33,23 @@ func dbotErr(msg string, vars ...any) error {
 	return fmt.Errorf("dbot: "+msg+": ", vars...)
 }
 
-func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries) {
+// TODO: polskie znaki zamienic na ascii
+var normalizeReplacer = strings.NewReplacer(
+	" ", "",
+	"\n", "",
+)
+
+func normalize(s string) string {
+	return strings.ToLower(normalizeReplacer.Replace(s))
+}
+
+func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minIO *minio.Client) {
 	d := DBot{
-		ctx:         ctx,
+		Ctx:         ctx,
 		Session:     sess,
 		MusicPlayer: player.NewPlayer(),
-		store:       db,
+		Store:       db,
+		MinIO:       minIO,
 	}
 
 	// Listeners must be registered befor we open connection
@@ -53,14 +70,9 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries) {
 	}
 
 	go func() {
-		for {
-			var Err player.Err
-			select {
-			case Err = <-d.MusicPlayer.ErrChan:
-			}
-
+		for Err := range d.MusicPlayer.ErrChan {
 			log.Error(Err.Err.Error())
-			ch, err := d.store.GetChannel(ctx, store.GetChannelParams{
+			ch, err := d.Store.GetChannel(ctx, store.GetChannelParams{
 				Gid:  Err.GID,
 				Type: musicChannel,
 			})
@@ -83,19 +95,96 @@ const (
 	adminChannel = "admin"
 )
 
-type response struct {
-	*discordgo.Interaction
-	msg *discordgo.InteractionResponse
-	typ string
+func uniqueVideoName(name string) string {
+	fileName, ext, found := strings.Cut(name, ".")
+	if !found {
+		newName := fmt.Sprintf("%s_%s", name, uuid.NewString())
+		log.Trace("[dupa]", log.Any("newName", newName))
+		return newName
+	}
+	newName := fmt.Sprintf("%s_%s.%s", fileName, uuid.NewString(), ext)
+	log.Trace("[dupa]", log.Any("newName", newName))
+	return newName
 }
 
-// use this to send response to user intearaction
-func (d *DBot) respond(response response) {
-	err := d.InteractionRespond(response.Interaction, response.msg)
-	if err != nil {
-		log.Error("response failed", log.Err(err), log.JSON(response))
-	}
+type SaveSoundParams struct {
+	GID     string
+	Aliases string `opt:"aliases"`
+	Link    string `opt:"link"`
+	// after unmarshal only ID field will be populated
+	// if attachment was provided
+	Att *discordgo.MessageAttachment `opt:"file"`
 }
+
+func (d *DBot) SaveSound(params SaveSoundParams) error {
+	if len(params.GID) == 0 {
+		return errors.New("guild id not provided")
+	}
+
+	mediaURL := params.Link
+	if params.Att != nil {
+		mediaURL = params.Att.URL
+	}
+	log.Trace("[dupa]", log.Any("mediaURL", mediaURL))
+
+	aliases := strings.Split(params.Aliases, ",")
+
+	info, err := d.storeMediaInMinIO(aliases[0], mediaURL)
+	if err != nil {
+		return fmt.Errorf("failed to save attachment '%s': %w", mediaURL, err)
+	}
+
+	link := fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, info.Key)
+	log.Trace("[dupa]", log.Any("link", link))
+
+	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
+		Gid:     params.GID,
+		Url:     link,
+		Aliases: aliases,
+	})
+	if err != nil {
+		return err
+	}
+	log.Trace("[dupa]", log.JSON(sound))
+
+	return nil
+}
+
+func (d *DBot) storeMediaInMinIO(name, url string) (minio.UploadInfo, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return minio.UploadInfo{}, fmt.Errorf("failed to get '%s': %w", url, err)
+	}
+
+	info, err := d.MinIO.PutObject(d.Ctx,
+		config.MINIO_DBOT_BUCKET_NAME,
+		uniqueVideoName(name),
+		resp.Body,
+		resp.ContentLength,
+		minio.PutObjectOptions{
+			ContentType: resp.Header.Get("content-type"),
+		})
+	if err != nil {
+		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
+	}
+	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
+
+	return info, nil
+}
+
+// type response struct {
+// 	*discordgo.Interaction
+// 	msg *discordgo.InteractionResponse
+// 	typ string
+// }
+//
+// // use this to send response to user intearaction
+// func (d *DBot) respond(response response) {
+// 	err := d.InteractionRespond(response.Interaction, response.msg)
+// 	if err != nil {
+// 		log.Error("response failed", log.Err(err), log.JSON(response))
+// 	}
+// }
 
 type channelMessage struct {
 	chid    string
@@ -132,96 +221,11 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 	return nil, fmt.Errorf("user '%s' in guild '%s' is not in voice channel", uID, gID)
 }
 
-func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
-	var options struct {
-		Link string `opt:"link"`
-	}
-
-	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &options)
+func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) {
+	ch, err := d.Store.MapChannel(d.Ctx, params)
 	if err != nil {
-		return dbotErr("failed to parse args: %w", err)
+		return store.Channel{}, dbotErr("failed to save: %w", err)
 	}
 
-	err = d.connectVoice(i.GuildID, i.User.ID)
-	if err != nil {
-		return err
-	}
-
-	err = d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("added %s", options.Link),
-		},
-	})
-
-	d.MusicPlayer.Add(options.Link)
-
-	return nil
-}
-
-func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
-	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "sadge",
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-
-	if d.MusicPlayer.VC != nil {
-		err := d.MusicPlayer.VC.Disconnect()
-		if err != nil {
-			d.MusicPlayer.ErrChan <- player.Err{
-				GID: i.GuildID,
-				Err: err,
-			}
-		}
-	}
-
-	d.MusicPlayer = player.NewPlayer()
-	return nil
-}
-
-func (d *DBot) mapChannel(i *discordgo.InteractionCreate) error {
-	var options struct {
-		Type    string             `opt:"type"`
-		Channel *discordgo.Channel `opt:"channel"`
-	}
-
-	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &options)
-	if err != nil {
-		return dbotErr("failed to parse args: %w", err)
-	}
-
-	ch, err := d.store.MapChannel(d.ctx, store.MapChannelParams{
-		Gid:    i.GuildID,
-		Chid:   options.Channel.ID,
-		ChName: options.Channel.Name,
-		Type:   options.Type,
-	})
-	if err != nil {
-		return dbotErr("failed to save: %w", err)
-	}
-
-	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("Channel <#%s> will be used as '%s' channel", ch.Chid, ch.Type),
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-
-	return nil
-}
-
-func (d *DBot) handlePause(i *discordgo.InteractionCreate) error {
-	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("paused %v", !d.MusicPlayer.Playing.Load()),
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-	d.MusicPlayer.PlayPause()
-	return nil
+	return ch, nil
 }
