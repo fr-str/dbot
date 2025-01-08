@@ -14,6 +14,8 @@ var (
 	YTDLP_DOWNLOAD_DIR = env.Get("YTDLP_DOWNLOAD_DIR", filepath.Join(os.TempDir(), "dbot"))
 	COOKIE_PATH        = env.Get("COOKIE_PATH", "")
 
+	FFMPEG_TRANSCODE_PATH = env.Get("FFMPEG_TRANSCODE_PATH", filepath.Join(os.TempDir(), "dbot", "ffmpeg"))
+
 	// minio
 	MINIO_HOST              = env.Get[string]("MINIO_HOST")
 	MINIO_ACCESS_KEY_ID     = env.Get[string]("MINIO_ACCESS_KEY_ID")
@@ -24,6 +26,7 @@ var (
 func init() {
 	dirs := []string{
 		YTDLP_DOWNLOAD_DIR,
+		FFMPEG_TRANSCODE_PATH,
 	}
 
 	for _, dir := range dirs {

@@ -30,6 +30,22 @@ var cmds = []*discordgo.ApplicationCommand{
 		Description: "bot wpierdala",
 	},
 	{
+		Name:        "to-mp4",
+		Description: "Attempts to transcode video to format compatible with discord.",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "link",
+				Description: "link to audio",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionAttachment,
+				Name:        "file",
+				Description: "file",
+			},
+		},
+	},
+	{
 		Name:        "sound",
 		Description: "list all or add new sound",
 		Options: []*discordgo.ApplicationCommandOption{
@@ -93,5 +109,6 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"set-bot-channel": d.handleMapChannel,
 		"pause-play":      d.handlePause,
 		"sound":           d.handleSound,
+		"to-mp4":          d.handleToMP4,
 	}
 }

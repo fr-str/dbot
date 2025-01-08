@@ -26,6 +26,8 @@ var (
 //   - string
 //   - all int, uint variants.
 //   - int/string slices
+//
+// if discordgo.Attachment is provided ony ID is populated in struct
 func UnmarshalOptions(sess *discordgo.Session, options []*discordgo.ApplicationCommandInteractionDataOption, dest any) error {
 	// check if dest is valid
 	rv := reflect.ValueOf(dest)

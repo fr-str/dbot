@@ -93,6 +93,7 @@ func (p *Player) musicLoop() {
 		err := p.play(a)
 		if err != nil {
 			p.ErrChan <- p.playerErr("failed to play", err)
+			continue
 		}
 
 		log.Trace("musicLoop", log.Bool("p.list.more()", p.list.more()))
@@ -118,6 +119,7 @@ func (p *Player) soundLoop() {
 		err := p.playSound(a)
 		if err != nil {
 			p.ErrChan <- p.playerErr("failed to play", err)
+			continue
 		}
 
 		log.Trace("soundLoop", log.Any("shouldUnpause", shouldUnpause))

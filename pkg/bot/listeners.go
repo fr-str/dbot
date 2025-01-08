@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net/url"
 	"strings"
-	"time"
 
 	"dbot/pkg/logic"
 
@@ -19,6 +17,7 @@ func (d *DBot) RegisterEventListiners() {
 	d.AddHandler(d.commands(cmdHandlers))
 	d.AddHandler(d.Ready)
 	d.AddHandler(d.messages)
+	d.AddHandler(d.onUserVoiceStateChange)
 }
 
 func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate) error) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -72,7 +71,12 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 	}
 
 	for _, s := range sounds {
-		d.MusicPlayer.PlaySound(s.Url)
+		url, err := d.getLinkFromSoundKey(s.Url)
+		if err != nil {
+			log.Error(err.Error())
+			return
+		}
+		d.MusicPlayer.PlaySound(url)
 	}
 }
 
@@ -125,17 +129,46 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 		return
 	}
 
-	bucket, key, found := strings.Cut(sound.Url, ",")
-	if !found {
-		log.Warn(fmt.Sprintf("could not find separator in link '%s'", sound.Url))
-		return
-	}
-	url, err := d.MinIO.PresignedGetObject(d.Ctx, bucket, key, 5*time.Hour, url.Values{})
+	log.Trace("isKnownSound", log.Any("sound.Url", sound.Url))
+
+	url, err := d.getLinkFromSoundKey(sound.Url)
 	if err != nil {
 		log.Error(err.Error())
 		return
 	}
 
-	log.Trace("[dupa]", log.Any("o.String()", url.String()))
-	d.MusicPlayer.PlaySound(url.String())
+	log.Trace("isKnownSound", log.Any("url", url))
+	d.MusicPlayer.PlaySound(url)
+}
+
+func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
+	g, _ := d.State.Guild(vs.GuildID)
+	if g == nil {
+		return
+	}
+
+	log.Trace("onUserVoiceStateChange", log.Any("d.MusicPlayer.VC == nil", d.MusicPlayer.VC == nil))
+	if d.MusicPlayer.VC == nil {
+		return
+	}
+
+	botChanID := d.MusicPlayer.VC.ChannelID
+	log.Trace("onUserVoiceStateChange", log.Any("d.MusicPlayer.VC.ChannelID", d.MusicPlayer.VC.ChannelID))
+	var botChanUserCount int
+	for _, v := range g.VoiceStates {
+		if v.Member.User.Bot {
+			continue
+		}
+		if v.ChannelID != botChanID {
+			continue
+		}
+
+		botChanUserCount++
+	}
+
+	if botChanUserCount > 0 {
+		return
+	}
+
+	d.wypierdalajZVC(vs.GuildID)
 }

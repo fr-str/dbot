@@ -13,16 +13,16 @@ import (
 )
 
 func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
-	var options struct {
+	var opts struct {
 		Link string `opt:"link"`
 	}
 
-	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &options)
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return dbotErr("failed to parse args: %w", err)
 	}
 
-	err = d.connectVoice(i.GuildID, i.User.ID)
+	err = d.connectVoice(i.GuildID, i.Member.User.ID)
 	if err != nil {
 		return err
 	}
@@ -30,11 +30,11 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	err = d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("added %s", options.Link),
+			Content: fmt.Sprintf("added %s", opts.Link),
 		},
 	})
 
-	d.MusicPlayer.Add(options.Link)
+	d.MusicPlayer.Add(opts.Link)
 
 	return err
 }
@@ -63,21 +63,21 @@ func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
 }
 
 func (d *DBot) handleMapChannel(i *discordgo.InteractionCreate) error {
-	var options struct {
+	var opts struct {
 		Type    string             `opt:"type"`
 		Channel *discordgo.Channel `opt:"channel"`
 	}
 
-	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &options)
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return dbotErr("failed to parse args: %w", err)
 	}
 
 	ch, err := d.mapChannel(store.MapChannelParams{
 		Gid:    i.GuildID,
-		Chid:   options.Channel.ID,
-		ChName: options.Channel.Name,
-		Type:   options.Type,
+		Chid:   opts.Channel.ID,
+		ChName: opts.Channel.Name,
+		Type:   opts.Type,
 	})
 	if err != nil {
 		return err
@@ -107,27 +107,27 @@ func (d *DBot) handlePause(i *discordgo.InteractionCreate) error {
 }
 
 func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
-	var params SaveSoundParams
+	var opts SaveSoundParams
 
-	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &params)
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal options: %w", err)
 	}
-	log.Debug("handleSounds", log.JSON(params))
+	log.Debug("handleSounds", log.JSON(opts))
 
-	params.Link = strings.TrimSpace(params.Link)
-	params.Aliases = normalizeReplacer.Replace(params.Aliases)
+	opts.Link = strings.TrimSpace(opts.Link)
+	opts.Aliases = normalizeReplacer.Replace(opts.Aliases)
 	// if len(options.Aliases) == 0 {
 	// 	return errors.New("you need to provide aliases and a link or attachment")
 	// }
 
 	resolved := i.ApplicationCommandData().Resolved
-	if resolved == nil && len(params.Link) == 0 {
+	if resolved == nil && len(opts.Link) == 0 {
 		return errors.New("you need to provide link or attachment")
 	}
 
 	if resolved != nil && len(resolved.Attachments) != 0 {
-		params.Att = resolved.Attachments[params.Att.ID]
+		opts.Att = resolved.Attachments[opts.Att.ID]
 	}
 
 	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -138,11 +138,54 @@ func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
 		},
 	})
 
-	params.GID = i.GuildID
-	err = d.SaveSound(params)
+	opts.GID = i.GuildID
+	err = d.SaveSound(opts)
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
+	var opts struct {
+		Link string                       `opt:"link"`
+		Att  *discordgo.MessageAttachment `opt:"file"`
+	}
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal options: %w", err)
+	}
+
+	url := opts.Link
+	resolved := i.ApplicationCommandData().Resolved
+	if resolved != nil && len(resolved.Attachments) != 0 {
+		opts.Att = resolved.Attachments[opts.Att.ID]
+		url = opts.Att.URL
+	}
+
+	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Working on it, might take some time...",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	f, err := d.downloadAsMP4(url)
+	if err != nil {
+		return err
+	}
+
+	d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
+		Files: []*discordgo.File{
+			{
+				Name:        "dupa.mp4",
+				ContentType: "video/mp4",
+				Reader:      f.body,
+			},
+		},
+	})
 
 	return nil
 }
