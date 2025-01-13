@@ -1,10 +1,15 @@
 services:
   dbot:
+    restart: unless-stopped
     build:
       context: .
       target: final
     ports:
       - 58008:58008
+    environment:
+      DB_DIR: prod-data
+    volumes:
+     - ./prod-data:/dbot/prod-data
 
   minio:
     image: bitnami/minio:latest
