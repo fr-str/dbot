@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -109,6 +110,8 @@ func (p *Player) musicLoop() {
 			continue
 		}
 
+		os.Remove(a.Filepath)
+
 		log.Trace("musicLoop", log.Bool("p.list.more()", p.list.more()))
 		if !p.list.more() {
 			p.PlayPause()
@@ -164,14 +167,17 @@ func (p *Player) fetch(audio *Audio) {
 
 	audio.Filepath = meta.Filepath
 	audio.Title = meta.Title
-	err = p.cache.SetAudio(context.Background(), cache.SetAudioParams{
-		Gid:      p.VC.GuildID,
-		Link:     czary,
-		Filepath: audio.Filepath,
-		Title:    audio.Title,
-	})
-	if err != nil {
-		log.Warn("failed to set in cache", log.Err(err))
+	// TODO: temprary, will probably store everything in minio
+	if !strings.Contains(audio.Link, "youtu") {
+		err = p.cache.SetAudio(context.Background(), cache.SetAudioParams{
+			Gid:      p.VC.GuildID,
+			Link:     czary,
+			Filepath: audio.Filepath,
+			Title:    audio.Title,
+		})
+		if err != nil {
+			log.Warn("failed to set in cache", log.Err(err))
+		}
 	}
 }
 

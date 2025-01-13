@@ -33,17 +33,17 @@ func (d *DBot) interfaceLoop() {
 		if content == lastContent {
 			continue
 		}
-		lastContent = content
-		msg, err := d.ChannelMessageSend(c.Chid, content)
-		if err != nil {
-			log.Error(err.Error())
-		}
-
 		err = d.ChannelMessageDelete(c.Chid, lastID)
 		if err != nil {
 			log.Error(err.Error())
 		}
 
+		lastContent = content
+		msg, err := d.ChannelMessageSend(c.Chid, content)
+		if err != nil {
+			log.Error(err.Error())
+		}
 		lastID = msg.ID
+
 	}
 }
