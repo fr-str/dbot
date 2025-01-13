@@ -21,9 +21,14 @@ func NewMinioStore(ctx context.Context) (Minio, error) {
 	accessKeyID := config.MINIO_ACCESS_KEY_ID
 	secretKey := config.MINIO_SECRET_ACCESS_KEY
 
+	var secure bool
+	if config.ENV == config.Prod {
+		secure = true
+	}
+
 	minioClient, err := minio.New(host, &minio.Options{
-		Creds: credentials.NewStaticV4(accessKeyID, secretKey, ""),
-		// Secure: true,
+		Creds:  credentials.NewStaticV4(accessKeyID, secretKey, ""),
+		Secure: secure,
 	})
 	if err != nil {
 		return ret, err

@@ -7,7 +7,12 @@ import (
 	"github.com/fr-str/env"
 )
 
+const (
+	Prod = "prod"
+)
+
 var (
+	ENV    = env.Get("ENV", "dev")
 	DB_DIR = env.Get("DB_DIR", "data")
 
 	TOKEN    = env.Get("TOKEN", "")
