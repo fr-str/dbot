@@ -6,9 +6,11 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"dbot/pkg/config"
 	"dbot/pkg/store"
 
 	"github.com/fr-str/log"
@@ -28,11 +30,11 @@ func (s db) configure() {
 }
 
 func Connect(ctx context.Context, filename string, schema string) (*store.Queries, error) {
-	w, err := sql.Open("sqlite", filename)
+	w, err := sql.Open("sqlite", filepath.Join(config.DB_DIR, filename))
 	if err != nil {
 		return nil, err
 	}
-	// r, err := sql.Open("sqlite", filename)
+	// r, err := sql.Open("sqlite", filepath.Join(config.DB_DIR,filename))
 	// if err != nil {
 	// 	return nil, err
 	// }

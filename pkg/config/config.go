@@ -8,6 +8,8 @@ import (
 )
 
 var (
+	DB_DIR = env.Get("DB_DIR", "data")
+
 	TOKEN    = env.Get("TOKEN", "")
 	GUILD_ID = env.Get("GUILD_ID", "")
 
@@ -27,6 +29,7 @@ func init() {
 	dirs := []string{
 		YTDLP_DOWNLOAD_DIR,
 		FFMPEG_TRANSCODE_PATH,
+		DB_DIR,
 	}
 
 	for _, dir := range dirs {
