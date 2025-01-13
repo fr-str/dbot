@@ -17,7 +17,11 @@ var cmds = []*discordgo.ApplicationCommand{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "link",
 				Description: "dupa",
-				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionAttachment,
+				Name:        "file",
+				Description: "file",
 			},
 		},
 	},

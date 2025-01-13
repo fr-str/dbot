@@ -14,12 +14,24 @@ import (
 
 func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	var opts struct {
-		Link string `opt:"link"`
+		Link string                       `opt:"link"`
+		Att  *discordgo.MessageAttachment `opt:"file"`
 	}
 
 	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return dbotErr("failed to parse args: %w", err)
+	}
+
+	resolved := i.ApplicationCommandData().Resolved
+	if resolved == nil && len(opts.Link) == 0 {
+		return errors.New("you need to provide link or attachment")
+	}
+
+	url := opts.Link
+	if resolved != nil && len(resolved.Attachments) != 0 {
+		opts.Att = resolved.Attachments[opts.Att.ID]
+		url = opts.Att.URL
 	}
 
 	err = d.connectVoice(i.GuildID, i.Member.User.ID)
@@ -30,11 +42,11 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	err = d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: fmt.Sprintf("added %s", opts.Link),
+			Content: fmt.Sprintf("added %s", url),
 		},
 	})
 
-	d.MusicPlayer.Add(opts.Link)
+	d.MusicPlayer.Add(url)
 
 	return err
 }
