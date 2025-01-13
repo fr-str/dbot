@@ -176,6 +176,7 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 	if err != nil {
 		return err
 	}
+	defer f.body.Close()
 
 	d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
 		Files: []*discordgo.File{

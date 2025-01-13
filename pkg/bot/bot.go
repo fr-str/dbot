@@ -165,6 +165,7 @@ func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error
 	if err != nil {
 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
 	}
+	defer file.body.Close()
 
 	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
 	if err != nil {
@@ -194,6 +195,7 @@ type file struct {
 	contentType string
 }
 
+// file.body has to be closed after use
 func (d *DBot) downloadAsMP4(url string) (file, error) {
 	if !strings.Contains(url, "youtu") {
 		resp, err := http.Get(url)
