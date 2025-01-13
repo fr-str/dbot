@@ -6,16 +6,16 @@ import (
 	"os"
 	"strings"
 
-	schema "dbot"
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/db"
 	"dbot/pkg/minio"
+	schema "dbot/sql"
 )
 
 func main() {
 	ctx := context.Background()
 
-	db, err := db.ConnectStore(ctx, "./test.db", schema.Schema)
+	db, err := db.ConnectStore(ctx, "./test.db", schema.DBSchema)
 	if err != nil {
 		panic(err)
 	}
@@ -31,8 +31,7 @@ func main() {
 	for k, v := range parse() {
 		params := dbot.SaveSoundParams{
 			// GID:     "438758201916129281",
-			GID: "492318912881491981",
-
+			GID:     "492318912881491981",
 			Link:    k,
 			Aliases: strings.Join(v, ","),
 		}

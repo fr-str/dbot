@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -142,9 +143,10 @@ func (p *Player) soundLoop() {
 }
 
 func (p *Player) fetch(audio *Audio) {
+	czary := czaryMaryŻebyDziałało(audio.Link)
 	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
 		Gid:  p.VC.GuildID,
-		Link: audio.Link,
+		Link: czary,
 	})
 	if err == nil {
 		log.Trace("audio cache HIT", log.JSON(au))
@@ -164,13 +166,26 @@ func (p *Player) fetch(audio *Audio) {
 	audio.Title = meta.Title
 	err = p.cache.SetAudio(context.Background(), cache.SetAudioParams{
 		Gid:      p.VC.GuildID,
-		Link:     audio.Link,
+		Link:     czary,
 		Filepath: audio.Filepath,
 		Title:    audio.Title,
 	})
 	if err != nil {
 		log.Warn("failed to set in cache", log.Err(err))
 	}
+}
+
+func czaryMaryŻebyDziałało(link string) string {
+	if strings.Contains(link, "youtu") {
+		return link
+	}
+
+	url, _, found := strings.Cut(link, "?")
+	if !found {
+		return link
+	}
+
+	return url
 }
 
 func (p *Player) play(audio *Audio) error {

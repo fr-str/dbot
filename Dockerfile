@@ -25,14 +25,16 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 # Create a new stage for running the application that contains the minimal
 FROM alpine:latest AS final
 
-# # Install any runtime dependencies that are needed to run your application.
-# # Leverage a cache mount to /var/cache/apk/ to speed up subsequent builds.
-# RUN --mount=type=cache,target=/var/cache/apk \
-#     apk --update add \
-#         ca-certificates \
-#         tzdata \
-#         && \
-#         update-ca-certificates
+# Install any runtime dependencies that are needed to run your application.
+# Leverage a cache mount to /var/cache/apk/ to speed up subsequent builds.
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk --update add \
+    ca-certificates \
+    tzdata \
+    ffmpeg \ 
+    yt-dlp \
+    && \
+    update-ca-certificates
 
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/
@@ -51,6 +53,7 @@ WORKDIR /dbot
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/dbot .
 COPY .prod.env ./.env
+COPY ./cookies.txt .
 RUN chmod +x ./dbot
 
 # USER appuser
