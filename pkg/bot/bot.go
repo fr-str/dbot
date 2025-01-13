@@ -61,6 +61,7 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minI
 	d.RegisterEventListiners()
 
 	d.StartScheduler()
+	go d.interfaceLoop()
 
 	err := sess.Open()
 	if err != nil {
@@ -87,10 +88,12 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minI
 				continue
 			}
 
-			d.message(channelMessage{
-				chid:    ch.Chid,
-				content: Err.Err.Error(),
-			})
+			_, err = d.ChannelMessageSend(ch.Chid, Err.Err.Error())
+			if err != nil {
+				log.Error(err.Error())
+				continue
+			}
+
 		}
 	}()
 }
@@ -257,33 +260,6 @@ func (d *DBot) convertToMP4(file string) (*os.File, error) {
 	}
 
 	return f, nil
-}
-
-// type response struct {
-// 	*discordgo.Interaction
-// 	msg *discordgo.InteractionResponse
-// 	typ string
-// }
-//
-// // use this to send response to user intearaction
-// func (d *DBot) respond(response response) {
-// 	err := d.InteractionRespond(response.Interaction, response.msg)
-// 	if err != nil {
-// 		log.Error("response failed", log.Err(err), log.JSON(response))
-// 	}
-// }
-
-type channelMessage struct {
-	chid    string
-	content string
-}
-
-// use this to send message not attached to user interaction
-func (d *DBot) message(msg channelMessage) {
-	_, err := d.ChannelMessageSend(msg.chid, msg.content)
-	if err != nil {
-		log.Error("response failed", log.Err(err), log.JSON(msg))
-	}
 }
 
 func (d *DBot) Ready(s *discordgo.Session, e *discordgo.Ready) {

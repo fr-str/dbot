@@ -1,20 +1,21 @@
 package player
 
 import (
-	"fmt"
 	"sync"
 )
 
 type Audio struct {
+	Title    string
 	Link     string
 	Filepath string
 }
 
 type list struct {
-	l         sync.Mutex
-	nextAudio chan *Audio
-	list      []Audio
-	idx       int
+	l            sync.Mutex
+	nextAudio    chan *Audio
+	list         []Audio
+	idx          int
+	currentAudio *Audio
 }
 
 func newList() list {
@@ -38,17 +39,17 @@ func (l *list) add(link string) *Audio {
 
 func (l *list) next() int {
 	e := l.list[l.idx]
-	fmt.Println("[dupa] l.idx: ", l.idx)
-	fmt.Println("[dupa] len(l.list): ", len(l.list))
 	if l.idx >= len(l.list) {
 		l.idx = 0
 	}
 	l.idx++
 
 	l.nextAudio <- &e
+	l.currentAudio = &e
 	return l.idx
 }
 
+// peek returns Audio current idx+1
 func (l *list) peek() *Audio {
 	if !l.more() {
 		return &l.list[0]
@@ -61,7 +62,7 @@ func (l *list) more() bool {
 }
 
 func (l *list) current() *Audio {
-	return &l.list[l.idx]
+	return l.currentAudio
 }
 
 func (l *list) len() int {

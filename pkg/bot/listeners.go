@@ -27,10 +27,10 @@ func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate
 			if err != nil {
 				log.Error(err.Error())
 
-				d.message(channelMessage{
-					chid:    i.ChannelID,
-					content: err.Error(),
-				})
+				_, err := d.ChannelMessageSend(i.ChannelID, err.Error())
+				if err != nil {
+					log.Error("response failed", log.Err(err))
+				}
 			}
 		}
 	}

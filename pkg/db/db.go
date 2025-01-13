@@ -90,7 +90,7 @@ func relaceConsecutiveSpaces(s string) string {
 }
 
 func logger(ctx context.Context, info string, query string, ts time.Time, args any, res sql.Result, err error) {
-	if !log.DefaultLogger.Logger.Enabled(ctx, level.Trace) {
+	if !log.DefaultLogger.Logger.Enabled(ctx, level.Trace-1) {
 		return
 	}
 	timeSince := time.Since(ts).String()
@@ -119,5 +119,6 @@ func logger(ctx context.Context, info string, query string, ts time.Time, args a
 			return
 		}
 	}
-	log.TraceCtx(ctx, fmt.Sprintf("%s executed", info), meta...)
+	log.DefaultLogger.Logger.Log(ctx, level.Trace-1, fmt.Sprintf("%s executed", info), meta...)
+	// log.TraceCtx(ctx, fmt.Sprintf("%s executed", info), meta...)
 }

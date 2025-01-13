@@ -69,6 +69,14 @@ func NewPlayer() *Player {
 	return p
 }
 
+func (p *Player) Current() *Audio {
+	return p.list.current()
+}
+
+func (p *Player) Next() *Audio {
+	return p.list.peek()
+}
+
 func (p *Player) Add(link string) {
 	p.list.add(link)
 	log.Debug("Add", log.Int("list.len", p.list.len()))
@@ -137,6 +145,8 @@ func (p *Player) fetch(audio *Audio) {
 	}
 
 	audio.Filepath = meta.Filepath
+	log.Trace("[dupa]", log.Any("meta.Title", meta.Title))
+	audio.Title = meta.Title
 }
 
 func (p *Player) play(audio *Audio) error {
