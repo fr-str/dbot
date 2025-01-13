@@ -55,6 +55,7 @@ USER appuser
 WORKDIR /dbot
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/dbot .
+COPY .prod.env ./.env
 
 # Expose the port that the application listens on.
 EXPOSE 58008
