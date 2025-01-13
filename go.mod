@@ -6,7 +6,10 @@ require (
 	github.com/bwmarrin/discordgo v0.28.1
 	github.com/fr-str/env v0.0.0-20240805161223-e2010c5d2e5c
 	github.com/fr-str/log v0.0.0-20241018144247-aa7387603e38
+	github.com/go-co-op/gocron/v2 v2.14.0
 	github.com/matryer/is v1.4.1
+	github.com/minio/minio-go/v7 v7.0.82
+	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20241117160931-a1769aeb6b21
 	github.com/pion/opus v0.0.0-20240826153031-e8536fe9e4ca
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	modernc.org/sqlite v1.34.4
@@ -14,7 +17,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-co-op/gocron/v2 v2.14.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -26,9 +28,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
-	github.com/minio/minio-go/v7 v7.0.82 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20241117160931-a1769aeb6b21 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
@@ -45,4 +45,4 @@ require (
 	modernc.org/token v1.1.0 // indirect
 )
 
-replace github.com/fr-str/log v0.0.0-20241018144247-aa7387603e38 => ../log
+// replace github.com/fr-str/log v0.0.0-20241018144247-aa7387603e38 => ../log

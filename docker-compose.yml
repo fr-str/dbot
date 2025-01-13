@@ -1,5 +1,12 @@
 services:
- minio:
+  dbot:
+    build:
+      context: .
+      target: final
+    ports:
+      - 58008:58008
+
+  minio:
     image: bitnami/minio:latest
     ports:
       - '9000:9000'
