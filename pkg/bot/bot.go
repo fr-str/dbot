@@ -12,11 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"dbot/pkg/cache"
 	"dbot/pkg/config"
+	"dbot/pkg/db"
 	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
 	"dbot/pkg/store"
 	"dbot/pkg/ytdlp"
+	schema "dbot/sql"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
@@ -24,6 +27,9 @@ import (
 )
 
 type DBot struct {
+	// only used to create new Player instances
+	_c *cache.Queries
+
 	Ctx   context.Context
 	Store *store.Queries
 	MinIO miniocli.Minio
@@ -48,12 +54,18 @@ func normalize(s string) string {
 	return strings.ToLower(normalizeReplacer.Replace(s))
 }
 
-func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minIO miniocli.Minio) {
+func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries, minIO miniocli.Minio) {
+	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", schema.AudioCacheSchema)
+	if err != nil {
+		panic(err)
+	}
+
 	d := DBot{
+		_c:          audioCache,
 		Ctx:         ctx,
 		Session:     sess,
-		MusicPlayer: player.NewPlayer(),
-		Store:       db,
+		MusicPlayer: player.NewPlayer(audioCache),
+		Store:       dbstore,
 		MinIO:       minIO,
 	}
 
@@ -63,13 +75,12 @@ func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minI
 	d.StartScheduler()
 	go d.interfaceLoop()
 
-	err := sess.Open()
+	err = sess.Open()
 	if err != nil {
 		panic(err)
 	}
 
 	for _, v := range cmds {
-
 		_, err := sess.ApplicationCommandCreate(sess.State.User.ID, config.GUILD_ID, v)
 		if err != nil {
 			panic(err)
@@ -318,6 +329,6 @@ func (d *DBot) wypierdalajZVC(gID string) error {
 		}
 	}
 
-	d.MusicPlayer = player.NewPlayer()
+	d.MusicPlayer = player.NewPlayer(d._c)
 	return nil
 }

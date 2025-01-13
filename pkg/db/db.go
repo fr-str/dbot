@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/store"
 
@@ -29,7 +30,25 @@ func (s db) configure() {
 	// s.r.SetMaxIdleConns(2)
 }
 
-func Connect(ctx context.Context, filename string, schema string) (*store.Queries, error) {
+func ConnectAudioCache(ctx context.Context, filename string, schema string) (*cache.Queries, error) {
+	w, err := sql.Open("sqlite", filepath.Join(config.YTDLP_DOWNLOAD_DIR, filename))
+	if err != nil {
+		return nil, err
+	}
+
+	// create tables
+	if _, err := w.ExecContext(ctx, schema); err != nil {
+		return nil, err
+	}
+
+	d := db{
+		w: w,
+	}
+	d.configure()
+	return cache.New(d), nil
+}
+
+func ConnectStore(ctx context.Context, filename string, schema string) (*store.Queries, error) {
 	w, err := sql.Open("sqlite", filepath.Join(config.DB_DIR, filename))
 	if err != nil {
 		return nil, err

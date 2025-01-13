@@ -58,7 +58,7 @@ func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
 		}
 	}
 
-	d.MusicPlayer = player.NewPlayer()
+	d.MusicPlayer = player.NewPlayer(d._c)
 	return nil
 }
 

@@ -9,6 +9,7 @@ services:
       ENV: prod
     volumes:
      - ./prod-data:/dbot/prod-data
+     - /tmp/dbot:/tmp/dbot
 
   minio:
     image: bitnami/minio:latest

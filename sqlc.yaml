@@ -1,12 +1,24 @@
 version: "2"
 sql:
-  - engine: "sqlite"
-    queries: "query.sql"
-    schema: "schema.sql"
+  - schema: "sql/db-schema.sql"
+    queries: "sql/db-query.sql"
+    engine: "sqlite"
     gen:
       go:
         package: "store"
         out: "pkg/store"
+        overrides:
+          - db_type: "Aliases"
+            go_type: 
+              import: "dbot/pkg/db/types"
+              type: "Aliases"
+  - schema: "sql/schema-audio-cache.sql"
+    queries: "sql/query-audio-cache.sql"
+    engine: "sqlite"
+    gen:
+      go:
+        package: "cache"
+        out: "pkg/cache"
         overrides:
           - db_type: "Aliases"
             go_type: 

@@ -15,7 +15,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	db, err := db.Connect(ctx, "./test.db", schema.Schema)
+	db, err := db.ConnectStore(ctx, "./test.db", schema.Schema)
 	if err != nil {
 		panic(err)
 	}
@@ -30,7 +30,9 @@ func main() {
 
 	for k, v := range parse() {
 		params := dbot.SaveSoundParams{
-			GID:     "438758201916129281",
+			// GID:     "438758201916129281",
+			GID: "492318912881491981",
+
 			Link:    k,
 			Aliases: strings.Join(v, ","),
 		}

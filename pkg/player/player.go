@@ -1,12 +1,14 @@
 package player
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os/exec"
 	"sync"
 	"sync/atomic"
 
+	"dbot/pkg/cache"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
@@ -38,6 +40,7 @@ func (t *Player) PlayPause() {
 
 type Player struct {
 	ytdlp.YTDLP
+	cache *cache.Queries
 
 	list    list
 	VC      *discordgo.VoiceConnection
@@ -57,11 +60,12 @@ type Err struct {
 	Err error
 }
 
-func NewPlayer() *Player {
+func NewPlayer(cache *cache.Queries) *Player {
 	p := &Player{
 		list:    newList(),
 		queue:   make(chan *Audio, 1000),
 		ErrChan: make(chan Err),
+		cache:   cache,
 	}
 	go p.musicLoop()
 	go p.soundLoop()
@@ -138,6 +142,18 @@ func (p *Player) soundLoop() {
 }
 
 func (p *Player) fetch(audio *Audio) {
+	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
+		Gid:  p.VC.GuildID,
+		Link: audio.Link,
+	})
+	if err == nil {
+		log.Trace("audio cache HIT", log.JSON(au))
+		audio.Filepath = au.Filepath
+		audio.Title = au.Title
+		return
+	}
+	log.Trace("audio cache MISS", log.String("link", audio.Link), log.String("gid", p.VC.GuildID))
+
 	meta, err := p.YTDLP.DownloadAudio(audio.Link)
 	if err != nil {
 		p.ErrChan <- p.playerErr("failed to download", err)
@@ -145,8 +161,16 @@ func (p *Player) fetch(audio *Audio) {
 	}
 
 	audio.Filepath = meta.Filepath
-	log.Trace("[dupa]", log.Any("meta.Title", meta.Title))
 	audio.Title = meta.Title
+	err = p.cache.SetAudio(context.Background(), cache.SetAudioParams{
+		Gid:      p.VC.GuildID,
+		Link:     audio.Link,
+		Filepath: audio.Filepath,
+		Title:    audio.Title,
+	})
+	if err != nil {
+		log.Warn("failed to set in cache", log.Err(err))
+	}
 }
 
 func (p *Player) play(audio *Audio) error {

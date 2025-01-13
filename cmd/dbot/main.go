@@ -6,13 +6,12 @@ import (
 	"os"
 	"os/signal"
 
-	schema "dbot"
-
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
 	"dbot/pkg/minio"
 	"dbot/pkg/store"
+	schema "dbot/sql"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -21,7 +20,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	db, err := db.Connect(ctx, "./test.db", schema.Schema)
+	db, err := db.ConnectStore(ctx, "./test.db", schema.DBSchema)
 	if err != nil {
 		panic(err)
 	}
@@ -41,18 +40,6 @@ func bot(ctx context.Context, db *store.Queries, minClient minio.Minio) {
 	}
 
 	dbot.Start(ctx, dg, db, minClient)
-	// name := ""
-	// for f := range minClient.ListObjects(ctx, config.MINIO_DBOT_BUCKET_NAME, miniocli.ListObjectsOptions{}) {
-	// 	log.Trace("[dupa]", log.JSON(f))
-	// 	name = f.Key
-	// }
-	//
-	// o, err := minClient.GetObject(ctx, config.MINIO_DBOT_BUCKET_NAME, name, miniocli.GetObjectOptions{})
-	// if err != nil {
-	// 	log.Error(err.Error())
-	// }
-	// ob, _ := o.Stat()
-	// log.Trace("[dupa]", log.JSON(ob))
 
 	<-ctx.Done()
 	dg.Close()
