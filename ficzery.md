@@ -4,7 +4,7 @@
 - wykrywanie duplikatów meme (H)
 - minIO access via bot (H)
   - postawić minIO na serverku
-  -~bo zapisuje wszystkie `sound` i `audio/video` odpalane przez `MusicPlayer` w minIO~
+  -   ~bo zapisuje wszystkie `sound` i `audio/video` odpalane przez `MusicPlayer` w minIO~
   - bot zapisuje wszystkie meme i video na minIO
 - ~tworzenie sounds (H)~
   - ~pobieranie attachment z discorda~

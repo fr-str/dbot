@@ -23,7 +23,7 @@ func FindSound(db *store.Queries, name string, gid string) (store.Sound, error) 
 	}
 
 	name = strings.ToLower(strings.ReplaceAll(name, " ", ""))
-	if name == "sound" {
+	if name == "sound" || name == "event" {
 		return randSound(sounds), nil
 	}
 

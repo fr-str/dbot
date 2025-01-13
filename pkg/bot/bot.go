@@ -13,20 +13,20 @@ import (
 	"time"
 
 	"dbot/pkg/config"
+	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
 	"dbot/pkg/store"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 )
 
 type DBot struct {
 	Ctx   context.Context
 	Store *store.Queries
-	MinIO *minio.Client
+	MinIO miniocli.Minio
 
 	*discordgo.Session
 	ytdlp.YTDLP
@@ -48,7 +48,7 @@ func normalize(s string) string {
 	return strings.ToLower(normalizeReplacer.Replace(s))
 }
 
-func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minIO *minio.Client) {
+func Start(ctx context.Context, sess *discordgo.Session, db *store.Queries, minIO miniocli.Minio) {
 	d := DBot{
 		Ctx:         ctx,
 		Session:     sess,
@@ -105,12 +105,14 @@ func uniqueVideoName(name string) string {
 	fileName, ext, found := strings.Cut(name, ".")
 	if !found {
 		// assume mp4
-		newName := fmt.Sprintf("%s_%s.mp4", name, uuid.NewString())
+		newName := fmt.Sprintf("%s.mp4", name)
+		// newName := fmt.Sprintf("%s_%s.mp4", name, uuid.NewString())
 		log.Trace("uniqueVideoName", log.Any("newName", newName))
 		return newName
 	}
 
-	newName := fmt.Sprintf("%s_%s.%s", fileName, uuid.NewString(), ext)
+	// newName := fmt.Sprintf("%s_%s.%s", fileName, uuid.NewString(), ext)
+	newName := fmt.Sprintf("%s.%s", fileName, ext)
 	log.Trace("uniqueVideoName", log.Any("newName", newName))
 	return newName
 }
@@ -137,7 +139,7 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 
 	aliases := strings.Split(params.Aliases, ",")
 
-	info, err := d.storeMediaInMinIO(aliases[0], mediaURL)
+	info, err := d.storeMediaInMinIO(aliases[0], mediaURL, params.GID)
 	if err != nil {
 		return fmt.Errorf("failed to save attachment '%s': %w", mediaURL, err)
 	}
@@ -158,16 +160,21 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 	return nil
 }
 
-func (d *DBot) storeMediaInMinIO(name, url string) (minio.UploadInfo, error) {
+func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error) {
 	file, err := d.downloadAsMP4(url)
 	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("getFile: %w", err)
+		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
+	}
+
+	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
+	if err != nil {
+		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
 	}
 
 	defer file.body.Close()
 	info, err := d.MinIO.PutObject(d.Ctx,
 		config.MINIO_DBOT_BUCKET_NAME,
-		uniqueVideoName(name),
+		filepath.Join(gID, "sounds", uniqueVideoName(name)),
 		file.body,
 		file.size,
 		minio.PutObjectOptions{

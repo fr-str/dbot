@@ -15,7 +15,6 @@ import (
 	"dbot/pkg/store"
 
 	"github.com/bwmarrin/discordgo"
-	miniocli "github.com/minio/minio-go/v7"
 )
 
 func main() {
@@ -35,7 +34,7 @@ func main() {
 	bot(ctx, db, minClien)
 }
 
-func bot(ctx context.Context, db *store.Queries, minClient *miniocli.Client) {
+func bot(ctx context.Context, db *store.Queries, minClient minio.Minio) {
 	dg, err := discordgo.New(fmt.Sprintf("Bot %s", config.TOKEN))
 	if err != nil {
 		panic(err)
