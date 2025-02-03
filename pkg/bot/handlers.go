@@ -3,6 +3,7 @@ package dbot
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"dbot/pkg/player"
@@ -11,6 +12,12 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
 )
+
+func isValidUrl(s string) bool {
+	u, err := url.Parse(s)
+	log.Trace("[dupa]", log.JSON(u))
+	return err == nil && u.Host != ""
+}
 
 func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	var opts struct {
@@ -32,6 +39,10 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	if resolved != nil && len(resolved.Attachments) != 0 {
 		opts.Att = resolved.Attachments[opts.Att.ID]
 		url = opts.Att.URL
+	}
+
+	if !isValidUrl(opts.Link) {
+		opts.Link = fmt.Sprintf("ytsearch:%s", opts.Link)
 	}
 
 	err = d.connectVoice(i.GuildID, i.Member.User.ID)
