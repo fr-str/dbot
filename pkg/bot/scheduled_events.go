@@ -46,7 +46,10 @@ func (d *DBot) papaj() {
 			return
 		}
 	}
-	d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/papaj.mp4")
+
+	if d.MusicPlayer.VC != nil {
+		d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/papaj.mp4")
+	}
 }
 
 func (d *DBot) środowaNoc() {
