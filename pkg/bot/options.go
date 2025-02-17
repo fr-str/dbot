@@ -41,7 +41,7 @@ func UnmarshalOptions(sess *discordgo.Session, options []*discordgo.ApplicationC
 
 		rv := reflect.ValueOf(dest).Elem()
 		// find field for tag
-		fieldIndex := findFieldByTag(rv, tagName)
+		fieldIndex := findFieldByTagValue(rv, tagName)
 		if fieldIndex == -1 {
 			log.Debug("field not found for tag", log.String("tag", tagName))
 			continue
@@ -121,7 +121,7 @@ func fillSlice(rv reflect.Value, fieldValue []string) error {
 	return nil
 }
 
-func findFieldByTag(rv reflect.Value, tagName string) int {
+func findFieldByTagValue(rv reflect.Value, tagName string) int {
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Type().Field(i)
 		tag := field.Tag.Get("opt")

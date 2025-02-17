@@ -246,6 +246,7 @@ func (d *DBot) convertToMP4(file string) (*os.File, error) {
 	// ffmpeg -i input.mp4 -map 0 -crf 18 -preset slow -b:a 96k -movflags +faststart -pix_fmt yuv420p out.mp4
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", file,
+		"-c:v", "libx264",
 		"-crf", "18",
 		"-preset", "slow",
 		"-map", "0",
