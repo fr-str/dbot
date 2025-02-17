@@ -42,7 +42,7 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	}
 
 	if !isValidUrl(opts.Link) {
-		opts.Link = fmt.Sprintf("ytsearch:%s", opts.Link)
+		url = fmt.Sprintf(`ytsearch:"%s"`, url)
 	}
 
 	err = d.connectVoice(i.GuildID, i.Member.User.ID)

@@ -103,7 +103,6 @@ func (d *DBot) connectVoice(gID, uID string) error {
 
 	vc, err := d.ChannelVoiceJoin(gID, channel.ChannelID, false, false)
 	if err != nil {
-		log.Error("failed to join VC", log.Err(err))
 		return fmt.Errorf("failed to join VC: %w", err)
 	}
 
