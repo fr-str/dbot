@@ -211,7 +211,7 @@ type file struct {
 
 // file.body has to be closed after use
 func (d *DBot) downloadAsMP4(url string) (file, error) {
-	if !strings.Contains(url, "youtu") {
+	if strings.Contains(url, "dodupy.dev") {
 		resp, err := http.Get(url)
 		if err != nil {
 			return file{}, fmt.Errorf("failed to get '%s': %w", url, err)

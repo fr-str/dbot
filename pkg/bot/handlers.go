@@ -195,6 +195,7 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 		},
 	})
 
+	log.Trace("handleToMP4", log.String("url", url))
 	f, err := d.downloadAsMP4(url)
 	if err != nil {
 		return err
