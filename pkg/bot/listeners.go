@@ -48,7 +48,7 @@ func (d *DBot) messages(_ *discordgo.Session, m *discordgo.MessageCreate) {
 
 func soundAll(d *DBot, m *discordgo.MessageCreate) {
 	m.Content = strings.ToLower(strings.ReplaceAll(m.Content, " ", ""))
-	if m.Content != "sound-all" {
+	if m.Content != "sound-all" && m.Content != "event-all" {
 		return
 	}
 
@@ -112,8 +112,9 @@ func (d *DBot) connectVoice(gID, uID string) error {
 }
 
 func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
-	log.Debug("isKnownSound", log.String("msg", m.Content))
-	m.Content = strings.ToLower(strings.ReplaceAll(m.Content, " ", ""))
+	msg := m.Content
+	m.Content = normalize(m.Content)
+	log.Debug("isKnownSound", log.String("msg", msg), log.String("normalized", m.Content))
 	sound, err := logic.FindSound(d.Store, m.Content, m.GuildID)
 	if err != nil {
 		if !errors.Is(err, logic.ErrSoundNotFound) {

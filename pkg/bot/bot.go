@@ -46,6 +46,15 @@ func dbotErr(msg string, vars ...any) error {
 
 // TODO: polskie znaki zamienic na ascii
 var normalizeReplacer = strings.NewReplacer(
+	"ą", "a",
+	"ć", "c",
+	"ę", "e",
+	"ł", "l",
+	"ż", "z",
+	"ź", "z",
+	"ó", "o",
+	"ś", "s",
+	"ń", "n",
 	" ", "",
 	"\n", "",
 )
@@ -145,6 +154,7 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 		return errors.New("guild id not provided")
 	}
 
+	params.Aliases = normalize(params.Aliases)
 	mediaURL := params.Link
 	if params.Att != nil {
 		mediaURL = params.Att.URL
