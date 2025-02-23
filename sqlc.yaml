@@ -2,10 +2,8 @@ version: "2"
 sql:
   - schema: "sql/db-schema.sql"
     queries: "sql/db-query.sql"
-    engine: "sqlite"
     gen:
       go:
-        package: "store"
         out: "pkg/store"
         overrides:
           - db_type: "Aliases"
