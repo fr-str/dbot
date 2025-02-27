@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 
 	"dbot/pkg/config"
 
@@ -33,7 +31,7 @@ const ytdlp = "yt-dlp"
 
 var audioDownloadCMD = []string{
 	"--no-simulate",
-	"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
+	// "--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
 	"--print", "after_move:%(.{title,filepath,ext})j",
 	"-x",
 	"--audio-format",
@@ -67,7 +65,7 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 
 var videoDownloadCMD = []string{
 	"--no-simulate",
-	"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
+	// "--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
 	"--print", "after_move:%(.{title,filepath,ext})j",
 	"-f",
 	"bestvideo+bestaudio/best",

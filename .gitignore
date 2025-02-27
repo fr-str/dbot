@@ -9,3 +9,4 @@ tmp
 test.db*
 cookies.txt
 .prod.env
+.aider*

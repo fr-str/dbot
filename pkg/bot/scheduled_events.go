@@ -60,7 +60,9 @@ func (d *DBot) środowaNoc() {
 			return
 		}
 	}
-	d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/srodowanoc.mp4")
+	if d.MusicPlayer.VC != nil {
+		d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/srodowanoc.mp4")
+	}
 }
 
 // only used for scheduled events

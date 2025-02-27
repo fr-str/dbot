@@ -44,7 +44,6 @@ func dbotErr(msg string, vars ...any) error {
 	return fmt.Errorf("dbot: "+msg+": ", vars...)
 }
 
-// TODO: polskie znaki zamienic na ascii
 var normalizeReplacer = strings.NewReplacer(
 	"ą", "a",
 	"ć", "c",
