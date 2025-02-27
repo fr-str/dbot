@@ -139,7 +139,6 @@ func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
 	log.Debug("handleSounds", log.JSON(opts))
 
 	opts.Link = strings.TrimSpace(opts.Link)
-	opts.Aliases = normalizeReplacer.Replace(opts.Aliases)
 	// if len(options.Aliases) == 0 {
 	// 	return errors.New("you need to provide aliases and a link or attachment")
 	// }
@@ -202,7 +201,7 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 	}
 	defer f.body.Close()
 
-	d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
+	_, err = d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
 		Files: []*discordgo.File{
 			{
 				Name:        "dupa.mp4",
@@ -212,5 +211,5 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 		},
 	})
 
-	return nil
+	return err
 }

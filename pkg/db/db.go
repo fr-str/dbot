@@ -58,6 +58,11 @@ func ConnectStore(ctx context.Context, filename string, schema string) (*store.Q
 	// 	return nil, err
 	// }
 
+	go func() {
+		<-ctx.Done()
+		w.Close()
+	}()
+
 	// create tables
 	if _, err := w.ExecContext(ctx, schema); err != nil {
 		return nil, err

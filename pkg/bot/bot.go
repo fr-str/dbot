@@ -108,7 +108,22 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 				continue
 			}
 
-			_, err = d.ChannelMessageSend(ch.Chid, Err.Err.Error())
+			chID := ch.Chid
+			errChan, err := d.Store.GetChannel(ctx, store.GetChannelParams{
+				Gid:  ch.Gid,
+				Type: errorChannel,
+			})
+			log.Trace("ErrChan", log.JSON(errChan), log.Err(err))
+			if err == nil && errChan.Chid != "" && errChan.Chid != "0" {
+				chID = errChan.Chid
+			}
+
+			msg := Err.Err.Error()
+			if errors.Is(Err.Err, ErrFailedToDownload) {
+				msg = "could not download video"
+			}
+
+			_, err = d.ChannelMessageSend(chID, msg)
 			if err != nil {
 				log.Error(err.Error())
 				continue
@@ -219,6 +234,8 @@ type file struct {
 	contentType string
 }
 
+var ErrFailedToDownload = errors.New("failed to download YT video")
+
 // file.body has to be closed after use
 func (d *DBot) downloadAsMP4(url string) (file, error) {
 	if strings.Contains(url, "dodupy.dev") {
@@ -236,7 +253,7 @@ func (d *DBot) downloadAsMP4(url string) (file, error) {
 
 	vi, err := d.DownloadVideo(url)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to download YT video '%s': %w", url, err)
+		return file{}, fmt.Errorf("%w '%s': %w", ErrFailedToDownload, url, err)
 	}
 
 	f, err := d.convertToMP4(vi.Filepath)

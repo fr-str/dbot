@@ -32,9 +32,14 @@ RUN --mount=type=cache,target=/var/cache/apk \
     ca-certificates \
     tzdata \
     ffmpeg \ 
-    yt-dlp \
+    python3 \
     && \
     update-ca-certificates
+
+# isntall ytdlp from GH
+RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
+    chmod +x ./yt-dlp && \
+    mv ./yt-dlp /usr/bin
 
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/

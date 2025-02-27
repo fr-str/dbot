@@ -11,6 +11,7 @@ import (
 	"dbot/pkg/db"
 	"dbot/pkg/minio"
 	"dbot/pkg/store"
+	"dbot/pkg/ytdlp"
 	schema "dbot/sql"
 
 	"github.com/bwmarrin/discordgo"
@@ -19,6 +20,7 @@ import (
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+	ytdlp.StartUpdater(ctx)
 
 	db, err := db.ConnectStore(ctx, "./test.db", schema.DBSchema)
 	if err != nil {
