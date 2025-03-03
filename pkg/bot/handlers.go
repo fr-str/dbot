@@ -3,7 +3,6 @@ package dbot
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"dbot/pkg/player"
@@ -12,12 +11,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
 )
-
-func isValidUrl(s string) bool {
-	u, err := url.Parse(s)
-	log.Trace("[dupa]", log.JSON(u))
-	return err == nil && u.Host != ""
-}
 
 func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	var opts struct {
@@ -41,11 +34,7 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 		url = opts.Att.URL
 	}
 
-	if !isValidUrl(opts.Link) {
-		url = fmt.Sprintf(`ytsearch:"%s"`, url)
-	}
-
-	err = d.connectVoice(i.GuildID, i.Member.User.ID)
+	err = d.play(i.GuildID, i.Member.User.ID, url)
 	if err != nil {
 		return err
 	}
@@ -56,9 +45,6 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 			Content: fmt.Sprintf("added %s", url),
 		},
 	})
-
-	d.MusicPlayer.Add(url)
-
 	return err
 }
 
@@ -212,4 +198,26 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 	})
 
 	return err
+}
+
+func (d *DBot) savePlaylist(i *discordgo.InteractionCreate) error {
+	var opts struct {
+		Name string `opt:"name"`
+		Link string `opt:"yt-link"`
+	}
+
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal options: %w", err)
+	}
+
+	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Working on it, might take some time...",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	return d.savePlaylistFromYT(opts.Name, opts.Link, i.GuildID)
 }

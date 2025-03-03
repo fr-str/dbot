@@ -14,7 +14,7 @@ import (
 const addSound = `-- name: AddSound :one
 INSERT INTO sounds (gid,url,aliases)
 VALUES (?1,?2,?3)
-RETURNING url, gid, aliases
+RETURNING url, gid, aliases, created_at, updated_at, deleted_at
 `
 
 type AddSoundParams struct {
@@ -26,7 +26,14 @@ type AddSoundParams struct {
 func (q *Queries) AddSound(ctx context.Context, arg AddSoundParams) (Sound, error) {
 	row := q.db.QueryRowContext(ctx, addSound, arg.Gid, arg.Url, arg.Aliases)
 	var i Sound
-	err := row.Scan(&i.Url, &i.Gid, &i.Aliases)
+	err := row.Scan(
+		&i.Url,
+		&i.Gid,
+		&i.Aliases,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
 	return i, err
 }
 
@@ -41,7 +48,7 @@ func (q *Queries) DeleteChannel(ctx context.Context, chid string) error {
 }
 
 const getChannel = `-- name: GetChannel :one
-SELECT gid, chid, ch_name, type FROM channels
+SELECT gid, chid, ch_name, type, created_at, updated_at, deleted_at FROM channels
 WHERE gid = ? AND type = ? LIMIT 1
 `
 
@@ -58,6 +65,9 @@ func (q *Queries) GetChannel(ctx context.Context, arg GetChannelParams) (Channel
 		&i.Chid,
 		&i.ChName,
 		&i.Type,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -68,7 +78,7 @@ VALUES (?1, ?2, ?3, ?4)
 ON CONFLICT DO UPDATE SET
     chid = excluded.chid,
     ch_name = excluded.ch_name
-RETURNING gid, chid, ch_name, type
+RETURNING gid, chid, ch_name, type, created_at, updated_at, deleted_at
 `
 
 type MapChannelParams struct {
@@ -92,12 +102,15 @@ func (q *Queries) MapChannel(ctx context.Context, arg MapChannelParams) (Channel
 		&i.Chid,
 		&i.ChName,
 		&i.Type,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const selectSounds = `-- name: SelectSounds :many
-SELECT url, gid, aliases FROM sounds
+SELECT url, gid, aliases, created_at, updated_at, deleted_at FROM sounds
 WHERE gid = ?
 `
 
@@ -110,7 +123,14 @@ func (q *Queries) SelectSounds(ctx context.Context, gid string) ([]Sound, error)
 	var items []Sound
 	for rows.Next() {
 		var i Sound
-		if err := rows.Scan(&i.Url, &i.Gid, &i.Aliases); err != nil {
+		if err := rows.Scan(
+			&i.Url,
+			&i.Gid,
+			&i.Aliases,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

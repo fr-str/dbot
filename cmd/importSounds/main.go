@@ -9,13 +9,12 @@ import (
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/db"
 	"dbot/pkg/minio"
-	schema "dbot/sql"
 )
 
 func main() {
 	ctx := context.Background()
 
-	db, err := db.ConnectStore(ctx, "./test.db", schema.DBSchema)
+	db, err := db.ConnectStore(ctx, "./test.db", "")
 	if err != nil {
 		panic(err)
 	}

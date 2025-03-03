@@ -10,12 +10,14 @@ import (
 	"strings"
 	"time"
 
+	migrations "dbot/db"
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/store"
 
 	"github.com/fr-str/log"
 	"github.com/fr-str/log/level"
+	"github.com/pressly/goose/v3"
 	"modernc.org/sqlite"
 	_ "modernc.org/sqlite"
 )
@@ -37,8 +39,11 @@ func ConnectAudioCache(ctx context.Context, filename string, schema string) (*ca
 	}
 
 	// create tables
-	if _, err := w.ExecContext(ctx, schema); err != nil {
-		return nil, err
+	goose.SetBaseFS(migrations.CacheMigrations)
+	goose.SetDialect("sqlite3")
+	err = goose.UpContext(ctx, w, "cache")
+	if err != nil {
+		panic(err)
 	}
 
 	d := db{
@@ -64,8 +69,21 @@ func ConnectStore(ctx context.Context, filename string, schema string) (*store.Q
 	}()
 
 	// create tables
-	if _, err := w.ExecContext(ctx, schema); err != nil {
-		return nil, err
+	goose.SetBaseFS(migrations.DBmigrations)
+	goose.SetDialect("sqlite3")
+	err = goose.UpContext(ctx, w, "migrations")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = w.ExecContext(ctx, "PRAGMA journal_mode=WAL")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = w.ExecContext(ctx, "PRAGMA synchronus=NORMAL")
+	if err != nil {
+		panic(err)
 	}
 
 	d := db{

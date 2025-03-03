@@ -21,6 +21,9 @@ func FindSound(db *store.Queries, name string, gid string) (store.Sound, error) 
 	if err != nil {
 		return store.Sound{}, fmt.Errorf("db select failed: %w", err)
 	}
+	if len(sounds) == 0 {
+		return store.Sound{}, fmt.Errorf("no sounds in soundboard")
+	}
 
 	name = strings.ToLower(strings.ReplaceAll(name, " ", ""))
 	if name == "sound" || name == "event" {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"dbot/pkg/logic"
+	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
@@ -27,7 +28,11 @@ func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate
 			if err != nil {
 				log.Error(err.Error())
 
-				_, err := d.ChannelMessageSend(i.ChannelID, err.Error())
+				msg := err.Error()
+				if errors.Is(err, ytdlp.ErrFailedToDownload) {
+					msg = "could not download video"
+				}
+				_, err := d.ChannelMessageSend(i.ChannelID, msg)
 				if err != nil {
 					log.Error("response failed", log.Err(err))
 				}

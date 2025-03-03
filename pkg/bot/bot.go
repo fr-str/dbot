@@ -2,10 +2,13 @@ package dbot
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,11 +18,11 @@ import (
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
+	jobrunner "dbot/pkg/job_runner"
 	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
 	"dbot/pkg/store"
 	"dbot/pkg/ytdlp"
-	schema "dbot/sql"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
@@ -62,8 +65,14 @@ func normalize(s string) string {
 	return strings.ToLower(normalizeReplacer.Replace(s))
 }
 
+func startJobRunner(ctx context.Context, db *store.Queries) jobrunner.Runner {
+	runner := jobrunner.NewRunner(ctx, db)
+	go runner.Loop()
+	return runner
+}
+
 func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries, minIO miniocli.Minio) {
-	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", schema.AudioCacheSchema)
+	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", "")
 	if err != nil {
 		panic(err)
 	}
@@ -76,6 +85,9 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 		Store:       dbstore,
 		MinIO:       minIO,
 	}
+
+	runner := startJobRunner(ctx, dbstore)
+	runner.RegisterJob(DownloadJob, d.downloadAsync)
 
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()
@@ -118,7 +130,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 			}
 
 			msg := Err.Err.Error()
-			if errors.Is(Err.Err, ErrFailedToDownload) {
+			if errors.Is(Err.Err, ytdlp.ErrFailedToDownload) {
 				msg = "could not download video"
 			}
 
@@ -182,7 +194,7 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 		return fmt.Errorf("failed to save attachment '%s': %w", mediaURL, err)
 	}
 
-	link := fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, info.Key)
+	link := linkFromMinioUploadInfo(filepath.Join(params.GID, "sounds", info.Key))
 	log.Trace("SaveSound", log.Any("link", link))
 
 	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
@@ -196,6 +208,10 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 	log.Trace("SaveSound", log.JSON(sound))
 
 	return nil
+}
+
+func linkFromMinioUploadInfo(key string) string {
+	return fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, key)
 }
 
 func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error) {
@@ -213,7 +229,7 @@ func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error
 	defer file.body.Close()
 	info, err := d.MinIO.PutObject(d.Ctx,
 		config.MINIO_DBOT_BUCKET_NAME,
-		filepath.Join(gID, "sounds", uniqueVideoName(name)),
+		uniqueVideoName(name),
 		file.body,
 		file.size,
 		minio.PutObjectOptions{
@@ -233,8 +249,6 @@ type file struct {
 	contentType string
 }
 
-var ErrFailedToDownload = errors.New("failed to download YT video")
-
 // file.body has to be closed after use
 func (d *DBot) downloadAsMP4(url string) (file, error) {
 	if strings.Contains(url, "dodupy.dev") {
@@ -252,7 +266,7 @@ func (d *DBot) downloadAsMP4(url string) (file, error) {
 
 	vi, err := d.DownloadVideo(url)
 	if err != nil {
-		return file{}, fmt.Errorf("%w '%s': %w", ErrFailedToDownload, url, err)
+		return file{}, fmt.Errorf("'%s': %w", url, err)
 	}
 
 	f, err := d.convertToMP4(vi.Filepath)
@@ -319,7 +333,7 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 		return vs, nil
 	}
 
-	return nil, fmt.Errorf("user '%s' in guild '%s' is not in voice channel", uID, gID)
+	return nil, fmt.Errorf("user <@%s> in guild '%s' is not in voice channel", uID, gID)
 }
 
 func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) {
@@ -357,5 +371,120 @@ func (d *DBot) wypierdalajZVC(gID string) error {
 	}
 
 	d.MusicPlayer = player.NewPlayer(d._c)
+	return nil
+}
+
+func isValidUrl(s string) bool {
+	u, err := url.Parse(s)
+	log.Trace("isValidUrl", log.JSON(u))
+	return err == nil && u.Host != ""
+}
+
+func (d *DBot) play(gID, uID string, url string) error {
+	err := d.connectVoice(gID, uID)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case !isValidUrl(url):
+		err := d.searchAndPlay(url)
+		if err != nil {
+			return fmt.Errorf("failed searching: %w", err)
+		}
+	case strings.Contains(url, "/playlist"):
+		err := d.loadPlaylistToPlayer(url)
+		if err != nil {
+			return fmt.Errorf("failed load playlist: %w", err)
+		}
+	default:
+		d.MusicPlayer.Add(url)
+	}
+
+	return nil
+}
+
+func (d *DBot) searchAndPlay(url string) error {
+	url = fmt.Sprintf(`ytsearch:"%s"`, url)
+	d.MusicPlayer.Add(url)
+	return nil
+}
+
+func (d *DBot) loadPlaylistToPlayer(url string) error {
+	info, err := d.PlaylistInfo(url)
+	if err != nil {
+		return fmt.Errorf("failed getting playlist info: %w", err)
+	}
+
+	log.Trace("adding tracks from playlist", log.Int("len", len(info.Entries)))
+	for i := range info.Entries {
+		if info.Entries[i].Duration == nil {
+			log.Trace("skipping due to null duration, probably deleted vid",
+				log.String("title", info.Entries[i].Title),
+				log.String("url", info.Entries[i].URL),
+			)
+			continue
+		}
+		d.MusicPlayer.Add(info.Entries[i].URL)
+	}
+
+	return nil
+}
+
+func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
+	info, err := d.PlaylistInfo(url)
+	if err != nil {
+		return fmt.Errorf("failed getting playlist info: %w", err)
+	}
+	if len(info.Entries) == 0 {
+		return fmt.Errorf("failed to get video list from playlist")
+	}
+
+	playlist, err := d.Store.CreatePlaylist(d.Ctx, store.CreatePlaylistParams{
+		GuildID: gID,
+		Name:    name,
+		YoutubeUrl: sql.NullString{
+			String: info.WebpageURL,
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed creating playlist: %w", err)
+	}
+
+	for i := range info.Entries {
+		if info.Entries[i].Duration == nil {
+			log.Trace("skipping due to null duration, probably deleted vid",
+				log.String("title", info.Entries[i].Title),
+				log.String("url", info.Entries[i].URL),
+			)
+			continue
+		}
+
+		meta := DownloadAsyncMeta{
+			PlaylistID: playlist.ID,
+			URL:        info.Entries[i].URL,
+			GID:        gID,
+			Name:       info.Entries[i].Title,
+		}
+
+		b, err := json.Marshal(meta)
+		if err != nil {
+			log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
+			continue
+		}
+
+		_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
+			Meta:      string(b),
+			FailCount: 0,
+			Status:    "new",
+			JobType:   DownloadJob,
+		})
+		if err != nil {
+			log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
+			continue
+		}
+	}
+
 	return nil
 }

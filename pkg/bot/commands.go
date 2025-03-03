@@ -88,6 +88,24 @@ var cmds = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "save-playlist",
+		Description: "saves playlist and downloads all avaiable videos",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "name",
+				Description: "name",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "yt-link",
+				Description: "link",
+				Required:    true,
+			},
+		},
+	},
 }
 
 func (d *DBot) ClearCmds(s *discordgo.Session) {
@@ -114,5 +132,6 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"pause-play":      d.handlePause,
 		"sound":           d.handleSound,
 		"to-mp4":          d.handleToMP4,
+		"save-playlist":   d.savePlaylist,
 	}
 }

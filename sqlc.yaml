@@ -1,7 +1,7 @@
 version: "2"
 sql:
-  - schema: "sql/db-schema.sql"
-    queries: "sql/db-query.sql"
+  - schema: "./db/migrations/"
+    queries: "./db/queries/*.sql"
     engine: "sqlite"
     gen:
       go:
@@ -12,8 +12,8 @@ sql:
             go_type: 
               import: "dbot/pkg/db/types"
               type: "Aliases"
-  - schema: "sql/schema-audio-cache.sql"
-    queries: "sql/query-audio-cache.sql"
+  - schema: "./db/cache/"
+    queries: "./db/cache-queries/query-audio-cache.sql"
     engine: "sqlite"
     gen:
       go:
