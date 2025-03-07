@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"dbot/pkg/dbg"
 	"dbot/pkg/logic"
 	"dbot/pkg/ytdlp"
 
@@ -76,6 +77,9 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 	}
 
 	for _, s := range sounds {
+		dbg.Assert(len(s.Gid) > 0)
+		dbg.Assert(len(s.Url) > 0)
+		dbg.Assert(len(s.Aliases) > 0)
 		url, err := d.getLinkFromSoundKey(s.Url)
 		if err != nil {
 			log.Error(err.Error())

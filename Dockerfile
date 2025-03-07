@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 # source code into the container.
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=bind,target=. \
-    CGO_ENABLED=0 go build -o /bin/dbot ./cmd/dbot/main.go
+    CGO_ENABLED=0 go build -o /bin/dbot -tags 'debug' ./cmd/dbot/main.go
 
 ################################################################################
 # Create a new stage for running the application that contains the minimal
@@ -58,7 +58,6 @@ WORKDIR /dbot
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/dbot .
 COPY .prod.env ./.env
-COPY ./cookies.txt .
 RUN chmod +x ./dbot
 
 # USER appuser

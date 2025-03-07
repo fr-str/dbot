@@ -37,7 +37,7 @@ func init() {
 		<-config.Ctx.Done()
 		audioDownloadCMD = []string{
 			"--no-simulate",
-			"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
+			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 			"--print", "after_move:%(.{title,filepath,ext})j",
 			"-x",
 			"--audio-format",
@@ -45,7 +45,7 @@ func init() {
 		}
 		videoDownloadCMD = []string{
 			"--no-simulate",
-			"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
+			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 			"--print", "after_move:%(.{title,filepath,ext})j",
 			"-f",
 			"bestvideo+bestaudio/best",
@@ -56,7 +56,7 @@ func init() {
 			"--flat-playlist",
 			"--dump-single-json",
 			"--no-colors",
-			"--cookies", filepath.Join(must(os.Getwd()), config.COOKIE_PATH),
+			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 		}
 	}()
 }
@@ -150,9 +150,6 @@ func (YTDLP) PlaylistInfo(link string) (PlaylistMeta, error) {
 	if err != nil {
 		return meta, err
 	}
-	e := json.NewEncoder(os.Stdout) /*[dupa]*/
-	e.SetIndent("", " ")            /*[dupa]*/
-	e.Encode(meta)                  /*[dupa]*/
 
 	return meta, nil
 }

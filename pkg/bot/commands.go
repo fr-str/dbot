@@ -106,6 +106,19 @@ var cmds = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name:        "load-playlist",
+		Description: "loads saved playlist",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:         discordgo.ApplicationCommandOptionString,
+				Name:         "name",
+				Description:  "name",
+				Autocomplete: true,
+				Required:     true,
+			},
+		},
+	},
 }
 
 func (d *DBot) ClearCmds(s *discordgo.Session) {
@@ -133,5 +146,6 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"sound":           d.handleSound,
 		"to-mp4":          d.handleToMP4,
 		"save-playlist":   d.savePlaylist,
+		"load-playlist":   d.playPlaylistFromDB,
 	}
 }

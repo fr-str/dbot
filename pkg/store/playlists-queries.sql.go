@@ -74,7 +74,7 @@ func (q *Queries) CreatePlaylist(ctx context.Context, arg CreatePlaylistParams) 
 const getPlaylist = `-- name: GetPlaylist :one
 SELECT id, guild_id, name, youtube_url, created_at, updated_at
 FROM playlists
-WHERE guild_id = ? AND name = ?
+WHERE guild_id = ? AND name = ? AND deleted_at IS NULL
 LIMIT 1
 `
 
@@ -110,7 +110,7 @@ func (q *Queries) GetPlaylist(ctx context.Context, arg GetPlaylistParams) (GetPl
 const listPlaylistEntries = `-- name: ListPlaylistEntries :many
 SELECT id, playlist_id, youtube_url, minio_url, name, created_at, updated_at
 FROM playlist_entries
-WHERE playlist_id = ?
+WHERE playlist_id = ? AND deleted_at IS NULL
 ORDER BY created_at
 `
 
@@ -146,6 +146,37 @@ func (q *Queries) ListPlaylistEntries(ctx context.Context, playlistID int64) ([]
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const playlistNames = `-- name: PlaylistNames :many
+SELECT name
+FROM playlists
+WHERE guild_id = ? AND deleted_at IS NULL
+LIMIT 10
+`
+
+// Retrieve a playlist names by guild_id
+func (q *Queries) PlaylistNames(ctx context.Context, guildID string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, playlistNames, guildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

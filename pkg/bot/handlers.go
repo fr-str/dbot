@@ -221,3 +221,57 @@ func (d *DBot) savePlaylist(i *discordgo.InteractionCreate) error {
 
 	return d.savePlaylistFromYT(opts.Name, opts.Link, i.GuildID)
 }
+
+func (d *DBot) playPlaylistFromDB(i *discordgo.InteractionCreate) error {
+	if isAutocompleteInteraction(i) {
+		return d.autocompleteForPlayPlaylistFromDB(i)
+	}
+	var opts struct {
+		Name string `opt:"name"`
+	}
+
+	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal options: %w", err)
+	}
+
+	err = d.connectVoice(i.GuildID, i.Member.User.ID)
+	if err != nil {
+		return err
+	}
+	err = d.loadPlaylistFromDB(opts.Name, i.GuildID)
+	if err != nil {
+		return err
+	}
+
+	return d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: fmt.Sprintf("loading %s", opts.Name),
+		},
+	})
+}
+
+func (d *DBot) autocompleteForPlayPlaylistFromDB(i *discordgo.InteractionCreate) error {
+	names, err := d.Store.PlaylistNames(d.Ctx, i.GuildID)
+	if err != nil {
+		log.Error("failed getting playlist names", log.Err(err))
+	}
+
+	choices := make([]*discordgo.ApplicationCommandOptionChoice, 0, len(names))
+	for _, name := range names {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{Name: name, Value: name})
+	}
+
+	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionApplicationCommandAutocompleteResult,
+		Data: &discordgo.InteractionResponseData{
+			Choices: choices,
+		},
+	})
+	return nil
+}
+
+func isAutocompleteInteraction(i *discordgo.InteractionCreate) bool {
+	return i.Type == discordgo.InteractionApplicationCommandAutocomplete
+}

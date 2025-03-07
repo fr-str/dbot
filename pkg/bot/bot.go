@@ -18,6 +18,7 @@ import (
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
+	"dbot/pkg/dbg"
 	jobrunner "dbot/pkg/job_runner"
 	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
@@ -176,18 +177,18 @@ type SaveSoundParams struct {
 }
 
 func (d *DBot) SaveSound(params SaveSoundParams) error {
-	if len(params.GID) == 0 {
-		return errors.New("guild id not provided")
-	}
+	dbg.Assert(len(params.GID) != 0)
 
 	params.Aliases = normalize(params.Aliases)
 	mediaURL := params.Link
 	if params.Att != nil {
 		mediaURL = params.Att.URL
 	}
+	dbg.Assert(len(mediaURL) != 0)
 	log.Trace("SaveSound", log.Any("mediaURL", mediaURL))
 
 	aliases := strings.Split(params.Aliases, ",")
+	dbg.Assert(len(aliases) > 0)
 
 	info, err := d.storeMediaInMinIO(aliases[0], mediaURL, params.GID)
 	if err != nil {
@@ -211,6 +212,7 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 }
 
 func linkFromMinioUploadInfo(key string) string {
+	dbg.Assert(len(key) > 0, "")
 	return fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, key)
 }
 
@@ -337,6 +339,10 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 }
 
 func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) {
+	dbg.Assert(len(params.ChName) > 0)
+	dbg.Assert(len(params.Gid) > 0)
+	dbg.Assert(len(params.Chid) > 0)
+	dbg.Assert(len(params.Type) > 0)
 	ch, err := d.Store.MapChannel(d.Ctx, params)
 	if err != nil {
 		return store.Channel{}, dbotErr("failed to save: %w", err)
@@ -393,7 +399,7 @@ func (d *DBot) play(gID, uID string, url string) error {
 			return fmt.Errorf("failed searching: %w", err)
 		}
 	case strings.Contains(url, "/playlist"):
-		err := d.loadPlaylistToPlayer(url)
+		err := d.playFromYTPlaylist(url)
 		if err != nil {
 			return fmt.Errorf("failed load playlist: %w", err)
 		}
@@ -410,7 +416,7 @@ func (d *DBot) searchAndPlay(url string) error {
 	return nil
 }
 
-func (d *DBot) loadPlaylistToPlayer(url string) error {
+func (d *DBot) playFromYTPlaylist(url string) error {
 	info, err := d.PlaylistInfo(url)
 	if err != nil {
 		return fmt.Errorf("failed getting playlist info: %w", err)
@@ -462,17 +468,15 @@ func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
 		}
 
 		meta := DownloadAsyncMeta{
-			PlaylistID: playlist.ID,
-			URL:        info.Entries[i].URL,
-			GID:        gID,
-			Name:       info.Entries[i].Title,
+			PlaylistID:  playlist.ID,
+			URL:         info.Entries[i].URL,
+			GID:         gID,
+			Name:        info.Entries[i].Title,
+			DownloadFor: "playlist_vids",
 		}
 
 		b, err := json.Marshal(meta)
-		if err != nil {
-			log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
-			continue
-		}
+		dbg.Assert(err == nil, err)
 
 		_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
 			Meta:      string(b),
@@ -484,6 +488,36 @@ func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
 			log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
 			continue
 		}
+	}
+
+	return nil
+}
+
+func (d *DBot) loadPlaylistFromDB(name string, gID string) error {
+	playlist, err := d.Store.GetPlaylist(d.Ctx, store.GetPlaylistParams{
+		GuildID: gID,
+		Name:    name,
+	})
+	if err != nil {
+		return fmt.Errorf("could not find playlist: %w", err)
+	}
+
+	list, err := d.Store.ListPlaylistEntries(d.Ctx, playlist.ID)
+	if err != nil {
+		return fmt.Errorf("could not find playlist: %w", err)
+	}
+
+	var topErr error
+	for _, elem := range list {
+		link, err := d.getLinkFromSoundKey(elem.MinioUrl)
+		if err != nil {
+			topErr = errors.Join(topErr, err)
+			continue
+		}
+		d.MusicPlayer.Add(link)
+	}
+	if topErr != nil {
+		log.Error("failed getting Link from Key", log.Err(topErr))
 	}
 
 	return nil

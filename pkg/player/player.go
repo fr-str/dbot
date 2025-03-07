@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"dbot/pkg/cache"
+	"dbot/pkg/dbg"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
@@ -85,7 +86,6 @@ func (p *Player) Next() *Audio {
 
 func (p *Player) Add(link string) {
 	p.list.add(link)
-	log.Debug("Add", log.Int("list.len", p.list.len()))
 	if p.paused {
 		p.PlayPause()
 	}
@@ -147,6 +147,7 @@ func (p *Player) soundLoop() {
 
 func (p *Player) fetch(audio *Audio) {
 	czary := czaryMaryŻebyDziałało(audio.Link)
+	dbg.Assert(p.VC != nil, "nil VC")
 	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
 		Gid:  p.VC.GuildID,
 		Link: czary,

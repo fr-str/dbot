@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"dbot/pkg/dbg"
 	"dbot/pkg/store"
 )
 
@@ -13,10 +14,11 @@ const (
 )
 
 type DownloadAsyncMeta struct {
-	PlaylistID int64
-	URL        string
-	GID        string
-	Name       string
+	PlaylistID  int64
+	URL         string
+	GID         string
+	Name        string
+	DownloadFor string
 }
 
 func (d *DBot) downloadAsync(meta string) error {
@@ -26,7 +28,12 @@ func (d *DBot) downloadAsync(meta string) error {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
 
-	info, err := d.storeMediaInMinIO(dwMeta.Name, dwMeta.URL, dwMeta.GID)
+	dbg.Assert(len(dwMeta.GID) > 0)
+	dbg.Assert(len(dwMeta.URL) > 0)
+	dbg.Assert(len(dwMeta.Name) > 0)
+	name := filepath.Join(dwMeta.GID, dwMeta.DownloadFor, dwMeta.Name)
+
+	info, err := d.storeMediaInMinIO(name, dwMeta.URL, dwMeta.GID)
 	if err != nil {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
@@ -34,7 +41,7 @@ func (d *DBot) downloadAsync(meta string) error {
 	_, err = d.Store.AddPlaylistEntry(d.Ctx, store.AddPlaylistEntryParams{
 		PlaylistID: dwMeta.PlaylistID,
 		YoutubeUrl: dwMeta.URL,
-		MinioUrl:   linkFromMinioUploadInfo(filepath.Join(dwMeta.GID, "videos", info.Key)),
+		MinioUrl:   linkFromMinioUploadInfo(info.Key),
 		Name:       dwMeta.Name,
 	})
 	if err != nil {
