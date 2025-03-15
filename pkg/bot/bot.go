@@ -125,7 +125,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 				Gid:  ch.Gid,
 				Type: errorChannel,
 			})
-			log.Trace("ErrChan", log.JSON(errChan), log.Err(err))
+			log.Trace("errChan", log.JSON(errChan), log.Err(err))
 			if err == nil && errChan.Chid != "" && errChan.Chid != "0" {
 				chID = errChan.Chid
 			}
@@ -180,28 +180,25 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 	dbg.Assert(len(params.GID) != 0)
 
 	params.Aliases = normalize(params.Aliases)
-	mediaURL := params.Link
-	if params.Att != nil {
-		mediaURL = params.Att.URL
-	}
-	dbg.Assert(len(mediaURL) != 0)
-	log.Trace("SaveSound", log.Any("mediaURL", mediaURL))
+	dbg.Assert(len(params.Link) != 0)
+	log.Trace("SaveSound", log.Any("params.Link", params.Link))
 
 	aliases := strings.Split(params.Aliases, ",")
 	dbg.Assert(len(aliases) > 0)
 
-	info, err := d.storeMediaInMinIO(aliases[0], mediaURL, params.GID)
+	info, err := d.storeMediaInMinIO(aliases[0], params.Link, params.GID)
 	if err != nil {
-		return fmt.Errorf("failed to save attachment '%s': %w", mediaURL, err)
+		return fmt.Errorf("failed to save attachment '%s': %w", params.Link, err)
 	}
 
 	link := linkFromMinioUploadInfo(filepath.Join(params.GID, "sounds", info.Key))
 	log.Trace("SaveSound", log.Any("link", link))
 
 	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
-		Gid:     params.GID,
-		Url:     link,
-		Aliases: aliases,
+		Gid:       params.GID,
+		Url:       link,
+		Aliases:   aliases,
+		OriginUrl: params.Link,
 	})
 	if err != nil {
 		return err
@@ -221,7 +218,7 @@ func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error
 	if err != nil {
 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
 	}
-	defer file.body.Close()
+	defer file.Close()
 
 	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
 	if err != nil {
@@ -249,6 +246,26 @@ type file struct {
 	body        io.ReadCloser
 	size        int64
 	contentType string
+	ogFile      string
+	ffmpegFile  string
+}
+
+func (f file) Close() {
+	if f.ogFile == "" && f.ffmpegFile == "" {
+		f.body.Close()
+		return
+	}
+	dbg.Assert(len(f.ogFile) > 0)
+	dbg.Assert(len(f.ffmpegFile) > 0)
+	err := os.Remove(f.ogFile)
+	if err != nil {
+		log.Error("failed to delete ogFile", log.Err(err))
+	}
+
+	err = os.Remove(f.ffmpegFile)
+	if err != nil {
+		log.Error("failed to delete ffmpegFile", log.Err(err))
+	}
 }
 
 // file.body has to be closed after use
@@ -278,13 +295,13 @@ func (d *DBot) downloadAsMP4(url string) (file, error) {
 
 	// size is only for optimizing transport to minio
 	// and i don't care enought to get the size here
-	return file{body: f, size: -1}, nil
+	return file{body: f, size: -1, ogFile: vi.Filepath, ffmpegFile: f.Name()}, nil
 }
 
 // os.File has to be closed manualy
 func (d *DBot) convertToMP4(file string) (*os.File, error) {
 	name := strings.ReplaceAll(file, filepath.Ext(file), "")
-	mp4Path := filepath.Join(config.FFMPEG_TRANSCODE_PATH, fmt.Sprintf("%s.mp4", filepath.Base(name)))
+	mp4Path := filepath.Join(config.FFMPEG_TRANSCODE_PATH, fmt.Sprintf("edit.%s.mp4", filepath.Base(name)))
 	// ffmpeg -i input.mp4 -map 0 -crf 18 -preset slow -b:a 96k -movflags +faststart -pix_fmt yuv420p out.mp4
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", file,
@@ -375,6 +392,7 @@ func (d *DBot) wypierdalajZVC(gID string) error {
 			}
 		}
 	}
+	d.MusicPlayer.Close()
 
 	d.MusicPlayer = player.NewPlayer(d._c)
 	return nil

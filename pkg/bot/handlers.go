@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"dbot/pkg/player"
 	"dbot/pkg/store"
 
 	"github.com/bwmarrin/discordgo"
@@ -57,17 +56,7 @@ func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
 		},
 	})
 
-	if d.MusicPlayer.VC != nil {
-		err := d.MusicPlayer.VC.Disconnect()
-		if err != nil {
-			d.MusicPlayer.ErrChan <- player.Err{
-				GID: i.GuildID,
-				Err: err,
-			}
-		}
-	}
-
-	d.MusicPlayer = player.NewPlayer(d._c)
+	d.wypierdalajZVC(i.GuildID)
 	return nil
 }
 
@@ -135,14 +124,15 @@ func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
 	}
 
 	if resolved != nil && len(resolved.Attachments) != 0 {
-		opts.Att = resolved.Attachments[opts.Att.ID]
+		opts.Link = resolved.Attachments[opts.Att.ID].URL
 	}
 
+	if opts.Att != nil {
+	}
 	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "stuff",
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Content: fmt.Sprintf("Saving sound '%s'", opts.Link),
 		},
 	})
 

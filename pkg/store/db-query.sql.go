@@ -12,19 +12,25 @@ import (
 )
 
 const addSound = `-- name: AddSound :one
-INSERT INTO sounds (gid,url,aliases)
-VALUES (?1,?2,?3)
-RETURNING url, gid, aliases, created_at, updated_at, deleted_at
+INSERT INTO sounds (gid,url,origin_url,aliases)
+VALUES (?1,?2,?3,?4)
+RETURNING url, gid, aliases, created_at, updated_at, deleted_at, origin_url
 `
 
 type AddSoundParams struct {
-	Gid     string
-	Url     string
-	Aliases types.Aliases
+	Gid       string
+	Url       string
+	OriginUrl string
+	Aliases   types.Aliases
 }
 
 func (q *Queries) AddSound(ctx context.Context, arg AddSoundParams) (Sound, error) {
-	row := q.db.QueryRowContext(ctx, addSound, arg.Gid, arg.Url, arg.Aliases)
+	row := q.db.QueryRowContext(ctx, addSound,
+		arg.Gid,
+		arg.Url,
+		arg.OriginUrl,
+		arg.Aliases,
+	)
 	var i Sound
 	err := row.Scan(
 		&i.Url,
@@ -33,6 +39,7 @@ func (q *Queries) AddSound(ctx context.Context, arg AddSoundParams) (Sound, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.OriginUrl,
 	)
 	return i, err
 }
@@ -110,7 +117,7 @@ func (q *Queries) MapChannel(ctx context.Context, arg MapChannelParams) (Channel
 }
 
 const selectSounds = `-- name: SelectSounds :many
-SELECT url, gid, aliases, created_at, updated_at, deleted_at FROM sounds
+SELECT url, gid, aliases, created_at, updated_at, deleted_at, origin_url FROM sounds
 WHERE gid = ?
 `
 
@@ -130,6 +137,7 @@ func (q *Queries) SelectSounds(ctx context.Context, gid string) ([]Sound, error)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.OriginUrl,
 		); err != nil {
 			return nil, err
 		}

@@ -10,3 +10,4 @@ test.db*
 cookies.txt
 .prod.env
 .aider*
+data/audio-cache.db

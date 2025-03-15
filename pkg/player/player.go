@@ -76,6 +76,12 @@ func NewPlayer(cache *cache.Queries) *Player {
 	return p
 }
 
+func (p *Player) Close() {
+	for i := range p.list.list {
+		os.Remove(p.list.list[i].Filepath)
+	}
+}
+
 func (p *Player) Current() *Audio {
 	return p.list.current()
 }
@@ -93,7 +99,11 @@ func (p *Player) Add(link string) {
 
 func (p *Player) PlaySound(link string) {
 	a := &Audio{Link: link}
-	p.fetch(a)
+	err := p.fetch(a)
+	if err != nil {
+		p.ErrChan <- p.playerErr("failed to download", err)
+		return
+	}
 	p.queue <- a
 }
 
@@ -101,7 +111,11 @@ func (p *Player) musicLoop() {
 	for a := range p.list.nextAudio {
 		log.Debug("list.nextAudio", log.JSON(a))
 		if len(a.Filepath) == 0 {
-			p.fetch(a)
+			err := p.fetch(a)
+			if err != nil {
+				p.ErrChan <- p.playerErr("failed to download", err)
+				continue
+			}
 		}
 
 		err := p.play(a)
@@ -109,8 +123,6 @@ func (p *Player) musicLoop() {
 			p.ErrChan <- p.playerErr("failed to play", err)
 			continue
 		}
-
-		os.Remove(a.Filepath)
 
 		log.Trace("musicLoop", log.Bool("p.list.more()", p.list.more()))
 		if !p.list.more() {
@@ -145,7 +157,7 @@ func (p *Player) soundLoop() {
 	}
 }
 
-func (p *Player) fetch(audio *Audio) {
+func (p *Player) fetch(audio *Audio) error {
 	czary := czaryMaryŻebyDziałało(audio.Link)
 	dbg.Assert(p.VC != nil, "nil VC")
 	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
@@ -156,14 +168,13 @@ func (p *Player) fetch(audio *Audio) {
 		log.Trace("audio cache HIT", log.JSON(au))
 		audio.Filepath = au.Filepath
 		audio.Title = au.Title
-		return
+		return nil
 	}
 	log.Trace("audio cache MISS", log.String("link", audio.Link), log.String("gid", p.VC.GuildID))
 
 	meta, err := p.YTDLP.DownloadAudio(audio.Link)
 	if err != nil {
-		p.ErrChan <- p.playerErr("failed to download", err)
-		return
+		return err
 	}
 
 	audio.Filepath = meta.Filepath
@@ -180,6 +191,7 @@ func (p *Player) fetch(audio *Audio) {
 			log.Warn("failed to set in cache", log.Err(err))
 		}
 	}
+	return nil
 }
 
 func czaryMaryŻebyDziałało(link string) string {

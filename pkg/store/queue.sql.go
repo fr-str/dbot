@@ -18,7 +18,7 @@ VALUES (
     ?3,
     ?4,
     ?5
-) RETURNING id, meta, fail_count, status, job_type, last_msg
+) RETURNING id, fail_count, status, job_type, meta, last_msg
 `
 
 type EnqueueParams struct {
@@ -40,17 +40,17 @@ func (q *Queries) Enqueue(ctx context.Context, arg EnqueueParams) (Queue, error)
 	var i Queue
 	err := row.Scan(
 		&i.ID,
-		&i.Meta,
 		&i.FailCount,
 		&i.Status,
 		&i.JobType,
+		&i.Meta,
 		&i.LastMsg,
 	)
 	return i, err
 }
 
 const findFailedTasksInQueue = `-- name: FindFailedTasksInQueue :many
-SELECT id, meta, fail_count, status, job_type, last_msg FROM queue
+SELECT id, fail_count, status, job_type, meta, last_msg FROM queue
 WHERE status != 'done' and fail_count = 5 order by id asc
 `
 
@@ -65,10 +65,10 @@ func (q *Queries) FindFailedTasksInQueue(ctx context.Context) ([]Queue, error) {
 		var i Queue
 		if err := rows.Scan(
 			&i.ID,
-			&i.Meta,
 			&i.FailCount,
 			&i.Status,
 			&i.JobType,
+			&i.Meta,
 			&i.LastMsg,
 		); err != nil {
 			return nil, err
@@ -85,7 +85,7 @@ func (q *Queries) FindFailedTasksInQueue(ctx context.Context) ([]Queue, error) {
 }
 
 const nextInQueue = `-- name: NextInQueue :one
-SELECT id, meta, fail_count, status, job_type, last_msg FROM queue
+SELECT id, fail_count, status, job_type, meta, last_msg FROM queue
 WHERE status != 'done' and fail_count < 5 order by id asc
 `
 
@@ -94,10 +94,10 @@ func (q *Queries) NextInQueue(ctx context.Context) (Queue, error) {
 	var i Queue
 	err := row.Scan(
 		&i.ID,
-		&i.Meta,
 		&i.FailCount,
 		&i.Status,
 		&i.JobType,
+		&i.Meta,
 		&i.LastMsg,
 	)
 	return i, err

@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
+	"slices"
 	"strings"
 
 	"dbot/pkg/dbg"
-	"dbot/pkg/logic"
+	"dbot/pkg/ffmpeg"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
@@ -49,7 +51,73 @@ func (d *DBot) messages(_ *discordgo.Session, m *discordgo.MessageCreate) {
 
 	isKnownSound(d, m)
 	soundAll(d, m)
+	backup(d, m)
+	transcodeToh264(d, m)
 	// testPlay(d, m)
+}
+
+func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
+	if len(m.Attachments) == 0 {
+		return
+	}
+	badCodecs := []string{
+		"hevc",
+		"av1",
+		"h265",
+	}
+
+	for _, att := range m.Attachments {
+		if !strings.Contains(att.ContentType, "video") {
+			continue
+		}
+		meta, err := d.DownloadVideo(att.URL)
+		if err != nil {
+			log.Error(err.Error())
+			continue
+		}
+		defer os.Remove(meta.Filepath)
+
+		streams, err := ffmpeg.Probe(meta.Filepath)
+		if err != nil {
+			log.Error(err.Error())
+			continue
+		}
+		for i := range streams {
+			s := &streams[i]
+			if s.CodecType != "video" {
+				continue
+			}
+
+			if !slices.Contains(badCodecs, s.CodecName) {
+				continue
+			}
+
+			d.MessageReactionAdd(m.ChannelID, m.ID, "bosy:1220157705273086002")
+
+			// transcode and upload
+			f, err := d.convertToMP4(meta.Filepath)
+			if err != nil {
+				log.Error("transcodeAndReupload", log.Err(err))
+				return
+			}
+			defer f.Close()
+			defer os.Remove(f.Name())
+			msg, err := d.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+				Files: []*discordgo.File{
+					{
+						Name:        "dupa.mp4",
+						ContentType: "video/mp4",
+						Reader:      f,
+					},
+				},
+			})
+			if err != nil {
+				log.Error("transcodeAndReupload", log.Err(err))
+				return
+			}
+			d.MessageReactionAdd(msg.ChannelID, msg.ID, "skipper:1330256451331031162")
+		}
+	}
 }
 
 func soundAll(d *DBot, m *discordgo.MessageCreate) {
@@ -124,9 +192,9 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 	msg := m.Content
 	m.Content = normalize(m.Content)
 	log.Debug("isKnownSound", log.String("msg", msg), log.String("normalized", m.Content))
-	sound, err := logic.FindSound(d.Store, m.Content, m.GuildID)
+	sound, err := findSound(d.Store, m.Content, m.GuildID)
 	if err != nil {
-		if !errors.Is(err, logic.ErrSoundNotFound) {
+		if !errors.Is(err, ErrSoundNotFound) {
 			log.Info("failed to find sound", log.Err(err))
 		}
 		return
@@ -180,4 +248,8 @@ func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceS
 	}
 
 	d.wypierdalajZVC(vs.GuildID)
+}
+
+func backup(d *DBot, m *discordgo.MessageCreate) {
+	backupMessage(m)
 }

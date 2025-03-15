@@ -43,10 +43,10 @@ type PlaylistEntry struct {
 
 type Queue struct {
 	ID        int64
-	Meta      string
 	FailCount int64
 	Status    string
 	JobType   string
+	Meta      string
 	LastMsg   sql.NullString
 }
 
@@ -57,4 +57,5 @@ type Sound struct {
 	CreatedAt sql.NullTime
 	UpdatedAt sql.NullTime
 	DeletedAt sql.NullTime
+	OriginUrl string
 }

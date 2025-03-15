@@ -1,4 +1,4 @@
-package logic
+package dbot
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 var ErrSoundNotFound = errors.New("sound not found")
 
-func FindSound(db *store.Queries, name string, gid string) (store.Sound, error) {
+func findSound(db *store.Queries, name string, gid string) (store.Sound, error) {
 	sounds, err := db.SelectSounds(context.Background(), gid)
 	if err != nil {
 		return store.Sound{}, fmt.Errorf("db select failed: %w", err)

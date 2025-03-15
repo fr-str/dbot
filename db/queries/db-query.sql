@@ -17,8 +17,8 @@ WHERE chid = ?;
 
 
 -- name: AddSound :one
-INSERT INTO sounds (gid,url,aliases)
-VALUES (:gid,:url,:aliases)
+INSERT INTO sounds (gid,url,origin_url,aliases)
+VALUES (:gid,:url,:origin_url,:aliases)
 RETURNING *;
 
 -- name: SelectSounds :many 

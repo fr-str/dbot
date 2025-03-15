@@ -38,14 +38,14 @@ func (l *list) add(link string) *Audio {
 }
 
 func (l *list) next() int {
-	e := l.list[l.idx]
+	e := &l.list[l.idx]
 	if l.idx >= len(l.list) {
 		l.idx = 0
 	}
 	l.idx++
 
-	l.nextAudio <- &e
-	l.currentAudio = &e
+	l.nextAudio <- e
+	l.currentAudio = e
 	return l.idx
 }
 
