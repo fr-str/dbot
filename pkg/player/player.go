@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 
 	"dbot/pkg/cache"
-	"dbot/pkg/dbg"
+	. "dbot/pkg/dbg"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
@@ -159,7 +159,7 @@ func (p *Player) soundLoop() {
 
 func (p *Player) fetch(audio *Audio) error {
 	czary := czaryMaryŻebyDziałało(audio.Link)
-	dbg.Assert(p.VC != nil, "nil VC")
+	Assert(p.VC != nil, "nil VC")
 	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
 		Gid:  p.VC.GuildID,
 		Link: czary,

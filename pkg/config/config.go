@@ -28,6 +28,8 @@ var (
 
 	FFMPEG_TRANSCODE_PATH string
 
+	BACKUP_DIR string
+
 	// minio
 	MINIO_HOST              string
 	MINIO_ACCESS_KEY_ID     string
@@ -48,6 +50,8 @@ func Load() {
 
 	FFMPEG_TRANSCODE_PATH = env.Get("FFMPEG_TRANSCODE_PATH", filepath.Join(os.TempDir(), "dbot", "ffmpeg"))
 
+	BACKUP_DIR = env.Get("BACKUP_DIR", filepath.Join(os.TempDir(), "dbot", "backup"))
+
 	// minio
 	MINIO_HOST = env.Get("MINIO_HOST", "")
 	MINIO_ACCESS_KEY_ID = env.Get("MINIO_ACCESS_KEY_ID", "")
@@ -57,6 +61,7 @@ func Load() {
 	dirs := []string{
 		YTDLP_DOWNLOAD_DIR,
 		FFMPEG_TRANSCODE_PATH,
+		BACKUP_DIR,
 		DB_DIR,
 	}
 

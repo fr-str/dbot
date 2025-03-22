@@ -15,10 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"dbot/pkg/backup"
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
 	"dbot/pkg/dbg"
+	. "dbot/pkg/dbg"
 	jobrunner "dbot/pkg/job_runner"
 	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
@@ -27,16 +29,16 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
-	"github.com/minio/minio-go/v7"
 )
 
 type DBot struct {
 	// only used to create new Player instances
 	_c *cache.Queries
 
-	Ctx   context.Context
-	Store *store.Queries
-	MinIO miniocli.Minio
+	Ctx    context.Context
+	Store  *store.Queries
+	Backup *backup.Queries
+	MinIO  miniocli.Minio
 
 	*discordgo.Session
 	ytdlp.YTDLP
@@ -72,18 +74,24 @@ func startJobRunner(ctx context.Context, db *store.Queries) jobrunner.Runner {
 	return runner
 }
 
-func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries, minIO miniocli.Minio) {
+func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries, minIO miniocli.Minio) *DBot {
 	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", "")
 	if err != nil {
 		panic(err)
 	}
+	backupDB, err := db.ConnectBackup(ctx, "backup.db", "")
+	if err != nil {
+		panic(err)
+	}
 
+	// sess.LogLevel = 3
 	d := DBot{
 		_c:          audioCache,
 		Ctx:         ctx,
 		Session:     sess,
 		MusicPlayer: player.NewPlayer(audioCache),
 		Store:       dbstore,
+		Backup:      backupDB,
 		MinIO:       minIO,
 	}
 
@@ -94,7 +102,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 	d.RegisterEventListiners()
 
 	d.StartScheduler()
-	go d.interfaceLoop()
+	d.interfaceLoop()
 
 	err = sess.Open()
 	if err != nil {
@@ -143,6 +151,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 
 		}
 	}()
+	return &d
 }
 
 const (
@@ -151,7 +160,7 @@ const (
 	adminChannel = "admin"
 )
 
-func uniqueVideoName(name string) string {
+func nameWithExt(name string) string {
 	fileName, ext, found := strings.Cut(name, ".")
 	if !found {
 		// assume mp4
@@ -177,26 +186,32 @@ type SaveSoundParams struct {
 }
 
 func (d *DBot) SaveSound(params SaveSoundParams) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	dbg.Assert(len(params.GID) != 0)
 
 	params.Aliases = normalize(params.Aliases)
-	dbg.Assert(len(params.Link) != 0)
+	Assert(len(params.Link) != 0)
 	log.Trace("SaveSound", log.Any("params.Link", params.Link))
 
 	aliases := strings.Split(params.Aliases, ",")
-	dbg.Assert(len(aliases) > 0)
+	Assert(len(aliases) > 0)
 
-	info, err := d.storeMediaInMinIO(aliases[0], params.Link, params.GID)
+	f, err := d.downloadAsMP4(ctx, params.Link)
 	if err != nil {
-		return fmt.Errorf("failed to save attachment '%s': %w", params.Link, err)
+		return fmt.Errorf("failed to download file '%s': %w", params.Link, err)
 	}
 
-	link := linkFromMinioUploadInfo(filepath.Join(params.GID, "sounds", info.Key))
-	log.Trace("SaveSound", log.Any("link", link))
+	info, err := d.backupFile(fmt.Sprintf("%s.mp4", aliases[0]), params.GID, f.body)
+	if err != nil {
+		return fmt.Errorf("failed to backup file '%s': %w", params.Link, err)
+	}
+
+	log.Trace("SaveSound", log.Any("link", info.Name))
 
 	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
 		Gid:       params.GID,
-		Url:       link,
+		Url:       info.Name,
 		Aliases:   aliases,
 		OriginUrl: params.Link,
 	})
@@ -209,38 +224,57 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 }
 
 func linkFromMinioUploadInfo(key string) string {
-	dbg.Assert(len(key) > 0, "")
+	Assert(len(key) > 0, "")
 	return fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, key)
 }
 
-func (d *DBot) storeMediaInMinIO(name, url, gID string) (minio.UploadInfo, error) {
-	file, err := d.downloadAsMP4(url)
-	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
-	}
-	defer file.Close()
+// func (d *DBot) storeMediaInMinIOAsMP4(name, url, gID string) (minio.UploadInfo, error) {
+// 	file, err := d.downloadAsMP4(url)
+// 	if err != nil {
+// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
+// 	}
+// 	defer file.Close()
+//
+// 	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
+// 	if err != nil {
+// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
+// 	}
+//
+// 	defer file.body.Close()
+// 	info, err := d.MinIO.PutObject(d.Ctx,
+// 		config.MINIO_DBOT_BUCKET_NAME,
+// 		nameWithExt(name),
+// 		file.body,
+// 		file.size,
+// 		minio.PutObjectOptions{
+// 			ContentType: file.contentType,
+// 		})
+// 	if err != nil {
+// 		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
+// 	}
+// 	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
+//
+// 	return info, nil
+// }
 
-	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
-	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
-	}
-
-	defer file.body.Close()
-	info, err := d.MinIO.PutObject(d.Ctx,
-		config.MINIO_DBOT_BUCKET_NAME,
-		uniqueVideoName(name),
-		file.body,
-		file.size,
-		minio.PutObjectOptions{
-			ContentType: file.contentType,
-		})
-	if err != nil {
-		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
-	}
-	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
-
-	return info, nil
-}
+// func (d *DBot) putInMinIO(folder string, filename string, file io.Reader) (minio.UploadInfo, error) {
+// 	err := d.MinIO.CreateFolderStructure(d.Ctx, folder)
+// 	if err != nil {
+// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
+// 	}
+//
+// 	name := filepath.Join(folder, filename)
+// 	info, err := d.MinIO.PutObject(d.Ctx,
+// 		config.MINIO_DBOT_BUCKET_NAME,
+// 		name,
+// 		file,
+// 		int64(-1), minio.PutObjectOptions{})
+// 	if err != nil {
+// 		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
+// 	}
+// 	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
+// 	return info, nil
+// }
 
 type file struct {
 	body        io.ReadCloser
@@ -255,8 +289,9 @@ func (f file) Close() {
 		f.body.Close()
 		return
 	}
-	dbg.Assert(len(f.ogFile) > 0)
-	dbg.Assert(len(f.ffmpegFile) > 0)
+	Assert(len(f.ogFile) > 0)
+	Assert(len(f.ffmpegFile) > 0)
+
 	err := os.Remove(f.ogFile)
 	if err != nil {
 		log.Error("failed to delete ogFile", log.Err(err))
@@ -269,7 +304,7 @@ func (f file) Close() {
 }
 
 // file.body has to be closed after use
-func (d *DBot) downloadAsMP4(url string) (file, error) {
+func (d *DBot) downloadAsMP4(ctx context.Context, url string) (file, error) {
 	if strings.Contains(url, "dodupy.dev") {
 		resp, err := http.Get(url)
 		if err != nil {
@@ -283,7 +318,7 @@ func (d *DBot) downloadAsMP4(url string) (file, error) {
 		}, nil
 	}
 
-	vi, err := d.DownloadVideo(url)
+	vi, err := d.DownloadVideo(ctx, url)
 	if err != nil {
 		return file{}, fmt.Errorf("'%s': %w", url, err)
 	}
@@ -296,6 +331,42 @@ func (d *DBot) downloadAsMP4(url string) (file, error) {
 	// size is only for optimizing transport to minio
 	// and i don't care enought to get the size here
 	return file{body: f, size: -1, ogFile: vi.Filepath, ffmpegFile: f.Name()}, nil
+}
+
+func (d *DBot) download(ctx context.Context, url string) (file, error) {
+	if strings.Contains(url, "dodupy.dev") {
+		resp, err := http.Get(url)
+		if err != nil {
+			return file{}, fmt.Errorf("failed to get '%s': %w", url, err)
+		}
+
+		go func() {
+			<-ctx.Done()
+			resp.Body.Close()
+		}()
+
+		return file{
+			body:        resp.Body,
+			contentType: resp.Header.Get("content-type"),
+		}, nil
+	}
+
+	vi, err := d.DownloadVideo(ctx, url)
+	if err != nil {
+		return file{}, fmt.Errorf("'%s': %w", url, err)
+	}
+
+	f, err := os.Open(vi.Filepath)
+	if err != nil {
+		return file{}, fmt.Errorf("failed to open file '%s': %w", vi.Filepath, err)
+	}
+
+	go func() {
+		<-ctx.Done()
+		f.Close()
+	}()
+
+	return file{body: f}, nil
 }
 
 // os.File has to be closed manualy
@@ -356,10 +427,10 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 }
 
 func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) {
-	dbg.Assert(len(params.ChName) > 0)
-	dbg.Assert(len(params.Gid) > 0)
-	dbg.Assert(len(params.Chid) > 0)
-	dbg.Assert(len(params.Type) > 0)
+	Assert(len(params.ChName) > 0)
+	Assert(len(params.Gid) > 0)
+	Assert(len(params.Chid) > 0)
+	Assert(len(params.Type) > 0)
 	ch, err := d.Store.MapChannel(d.Ctx, params)
 	if err != nil {
 		return store.Channel{}, dbotErr("failed to save: %w", err)
@@ -494,7 +565,7 @@ func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
 		}
 
 		b, err := json.Marshal(meta)
-		dbg.Assert(err == nil, err)
+		Assert(err == nil, err)
 
 		_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
 			Meta:      string(b),

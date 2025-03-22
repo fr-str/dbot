@@ -24,3 +24,10 @@ sql:
             go_type: 
               import: "dbot/pkg/db/types"
               type: "Aliases"
+  - schema: "./db/backup/"
+    queries: "./db/backup-queries/backup-queries.sql"
+    engine: "sqlite"
+    gen:
+      go:
+        package: "backup"
+        out: "pkg/backup"

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 
+	"dbot/pkg/api"
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
@@ -41,7 +42,8 @@ func bot(ctx context.Context, db *store.Queries, minClient minio.Minio) {
 		panic(err)
 	}
 
-	dbot.Start(ctx, dg, db, minClient)
+	d := dbot.Start(ctx, dg, db, minClient)
+	api.StartServer(d)
 
 	<-ctx.Done()
 	dg.Close()

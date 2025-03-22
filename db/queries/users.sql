@@ -1,0 +1,6 @@
+-- -- name: UpsertUser :one
+-- INSERT INTO users (discord_id, username)
+-- VALUES (:discord_id, :username)
+-- ON CONFLICT (discord_id) DO UPDATE SET
+--     username = excluded.username
+-- RETURNING *;

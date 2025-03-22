@@ -7,6 +7,8 @@ services:
     environment:
       DB_DIR: prod-data
       ENV: prod
+    ports:
+      - '58008:58008'
     volumes:
      - ./prod-data:/dbot/prod-data
      - /tmp/dbot:/tmp/dbot
