@@ -22,50 +22,24 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
     CGO_ENABLED=0 go build -o /bin/dbot -tags 'debug' ./cmd/dbot/main.go
 
 ################################################################################
-# Create a new stage for running the application that contains the minimal
-FROM alpine:latest AS final
+FROM archlinux:latest AS final
 
-# Install any runtime dependencies that are needed to run your application.
-# Leverage a cache mount to /var/cache/apk/ to speed up subsequent builds.
-RUN --mount=type=cache,target=/var/cache/apk \
-    apk --update add \
-    ca-certificates \
+RUN --mount=type=cache,target=/var/cache/pacman/pkg/ \
+    pacman -Syu --noconfirm --needed \
     tzdata \
     ffmpeg \ 
-    python3 \
-    && \
-    update-ca-certificates
+    libvpl vpl-gpu-rt \
+    wget \
+    python3
 
 # isntall ytdlp from GH
 RUN wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
     chmod +x ./yt-dlp && \
     mv ./yt-dlp /usr/bin
 
-# Create a non-privileged user that the app will run under.
-# See https://docs.docker.com/go/dockerfile-user-best-practices/
-ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
-
-
 WORKDIR /dbot
-# Copy the executable from the "build" stage.
 COPY --from=build /bin/dbot .
-COPY .prod.env ./.env
 RUN chmod +x ./dbot
 
-# USER appuser
-
-# Expose the port that the application listens on.
-EXPOSE 58008
-
-# What the container should run when it is started.
 # CMD [ "sleep","90900900" ]
 CMD [ "/dbot/dbot" ]
-

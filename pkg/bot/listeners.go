@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -8,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"dbot/pkg/dbg"
+	. "dbot/pkg/dbg"
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/ytdlp"
 
@@ -20,14 +21,18 @@ func (d *DBot) RegisterEventListiners() {
 	cmdHandlers := d.CommandHandlers()
 	d.AddHandler(d.commands(cmdHandlers))
 	d.AddHandler(d.Ready)
-	d.AddHandler(d.messages)
+
+	d.AddHandler(d.messagesListener)
+	d.AddHandler(d.messagesEditListener)
 	d.AddHandler(d.onUserVoiceStateChange)
 }
 
-func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate) error) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	return func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := cmdHandlers[i.ApplicationCommandData().Name]; ok {
-			err := h(i)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			err := h(ctx, i)
 			if err != nil {
 				log.Error(err.Error())
 
@@ -44,14 +49,28 @@ func (d *DBot) commands(cmdHandlers map[string]func(*discordgo.InteractionCreate
 	}
 }
 
-func (d *DBot) messages(_ *discordgo.Session, m *discordgo.MessageCreate) {
+func (d *DBot) messagesEditListener(_ *discordgo.Session, m *discordgo.MessageUpdate) {
 	if m.Author.Bot {
 		return
 	}
 
+	err := updateBackupMessage(d, m.Message)
+	if err != nil {
+		log.Error("updateBackupMessage", log.Err(err))
+	}
+}
+
+func (d *DBot) messagesListener(_ *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.Bot {
+		return
+	}
+	err := backupMessage(d, m.Message)
+	if err != nil {
+		log.Error("backupMessage", log.Err(err))
+	}
+
 	isKnownSound(d, m)
 	soundAll(d, m)
-	backup(d, m)
 	transcodeToh264(d, m)
 	// testPlay(d, m)
 }
@@ -60,6 +79,8 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 	if len(m.Attachments) == 0 {
 		return
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	badCodecs := []string{
 		"hevc",
 		"av1",
@@ -70,12 +91,11 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 		if !strings.Contains(att.ContentType, "video") {
 			continue
 		}
-		meta, err := d.DownloadVideo(att.URL)
+		meta, err := d.DownloadVideo(ctx, att.URL)
 		if err != nil {
 			log.Error(err.Error())
 			continue
 		}
-		defer os.Remove(meta.Filepath)
 
 		streams, err := ffmpeg.Probe(meta.Filepath)
 		if err != nil {
@@ -121,12 +141,12 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 }
 
 func soundAll(d *DBot, m *discordgo.MessageCreate) {
-	m.Content = strings.ToLower(strings.ReplaceAll(m.Content, " ", ""))
-	if m.Content != "sound-all" && m.Content != "event-all" {
+	normalized := normalize(m.Content)
+	if normalized != "sound-all" && normalized != "event-all" {
 		return
 	}
 
-	log.Debug("sound all", log.String("msg", m.Content))
+	log.Debug("sound all", log.String("msg", normalized))
 
 	sounds, err := d.Store.SelectSounds(d.Ctx, m.GuildID)
 	if err != nil {
@@ -145,15 +165,10 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 	}
 
 	for _, s := range sounds {
-		dbg.Assert(len(s.Gid) > 0)
-		dbg.Assert(len(s.Url) > 0)
-		dbg.Assert(len(s.Aliases) > 0)
-		url, err := d.getLinkFromSoundKey(s.Url)
-		if err != nil {
-			log.Error(err.Error())
-			return
-		}
-		d.MusicPlayer.PlaySound(url)
+		Assert(len(s.Gid) > 0)
+		Assert(len(s.Url) > 0)
+		Assert(len(s.Aliases) > 0)
+		d.MusicPlayer.PlaySound(s.Url)
 	}
 }
 
@@ -183,6 +198,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 		return fmt.Errorf("failed to join VC: %w", err)
 	}
 
+	// vc.LogLevel = 3
 	d.MusicPlayer.VC = vc
 
 	return nil
@@ -190,9 +206,9 @@ func (d *DBot) connectVoice(gID, uID string) error {
 
 func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 	msg := m.Content
-	m.Content = normalize(m.Content)
-	log.Debug("isKnownSound", log.String("msg", msg), log.String("normalized", m.Content))
-	sound, err := findSound(d.Store, m.Content, m.GuildID)
+	normalized := normalize(m.Content)
+	log.Debug("isKnownSound", log.String("msg", msg), log.String("normalized", normalized))
+	sound, err := findSound(d.Store, normalized, m.GuildID)
 	if err != nil {
 		if !errors.Is(err, ErrSoundNotFound) {
 			log.Info("failed to find sound", log.Err(err))
@@ -208,14 +224,8 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 
 	log.Trace("isKnownSound", log.Any("sound.Url", sound.Url))
 
-	url, err := d.getLinkFromSoundKey(sound.Url)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-
-	log.Trace("isKnownSound", log.Any("url", url))
-	d.MusicPlayer.PlaySound(url)
+	log.Trace("isKnownSound", log.Any("url", sound.Url))
+	d.MusicPlayer.PlaySound(sound.Url)
 }
 
 func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
@@ -248,8 +258,4 @@ func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceS
 	}
 
 	d.wypierdalajZVC(vs.GuildID)
-}
-
-func backup(d *DBot, m *discordgo.MessageCreate) {
-	backupMessage(m)
 }

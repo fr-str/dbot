@@ -3,7 +3,6 @@ package dbot
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	"dbot/pkg/dbg"
 	"dbot/pkg/store"
@@ -31,9 +30,19 @@ func (d *DBot) downloadAsync(meta string) error {
 	dbg.Assert(len(dwMeta.GID) > 0)
 	dbg.Assert(len(dwMeta.URL) > 0)
 	dbg.Assert(len(dwMeta.Name) > 0)
-	name := filepath.Join(dwMeta.GID, dwMeta.DownloadFor, dwMeta.Name)
 
-	info, err := d.storeMediaInMinIO(name, dwMeta.URL, dwMeta.GID)
+	f, err := d.downloadAsMP4(d.Ctx, dwMeta.URL)
+	if err != nil {
+		return fmt.Errorf("downloadAsync: %w", err)
+	}
+	defer f.Close()
+
+	bf, err := d.backupFile(backupFileParams{
+		Name: dwMeta.Name,
+		GID:  dwMeta.GID,
+		Dirs: dwMeta.DownloadFor,
+		File: f.body,
+	})
 	if err != nil {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
@@ -41,7 +50,7 @@ func (d *DBot) downloadAsync(meta string) error {
 	_, err = d.Store.AddPlaylistEntry(d.Ctx, store.AddPlaylistEntryParams{
 		PlaylistID: dwMeta.PlaylistID,
 		YoutubeUrl: dwMeta.URL,
-		MinioUrl:   linkFromMinioUploadInfo(info.Key),
+		Filepath:   bf.Name,
 		Name:       dwMeta.Name,
 	})
 	if err != nil {

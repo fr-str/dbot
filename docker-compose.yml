@@ -4,22 +4,12 @@ services:
     build:
       context: .
       target: final
-    environment:
-      DB_DIR: prod-data
-      ENV: prod
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - '58008:58008'
     volumes:
+     - ./.prod.env:/dbot/.env
      - ./prod-data:/dbot/prod-data
      - /tmp/dbot:/tmp/dbot
-
-  minio:
-    image: bitnami/minio:latest
-    ports:
-      - '9000:9000'
-      - '9001:9001'
-    volumes:
-      - './minio:/data'
-    environment:
-      - MINIO_ROOT_USER=root
-      # needs to be at least 8 chars
-      - MINIO_ROOT_PASSWORD=root1234
-      - MINIO_DEFAULT_BUCKETS=dbot
+     - /attached-storage/server/static/bot/:/attached-storage/dbot

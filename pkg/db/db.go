@@ -11,6 +11,7 @@ import (
 	"time"
 
 	migrations "dbot/db"
+	"dbot/pkg/backup"
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/store"
@@ -91,6 +92,36 @@ func ConnectStore(ctx context.Context, filename string, schema string) (*store.Q
 	}
 	d.configure()
 	return store.New(d), nil
+}
+
+func ConnectBackup(ctx context.Context, filename, password string) (*backup.Queries, error) {
+	w, err := sql.Open("sqlite", filepath.Join(config.BACKUP_DIR, filename))
+	if err != nil {
+		return nil, err
+	}
+
+	// create tables
+	goose.SetBaseFS(migrations.BackupMigrations)
+	goose.SetDialect("sqlite3")
+	err = goose.UpContext(ctx, w, "backup")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = w.ExecContext(ctx, "PRAGMA journal_mode=WAL")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = w.ExecContext(ctx, "PRAGMA synchronus=NORMAL")
+	if err != nil {
+		panic(err)
+	}
+	d := db{
+		w: w,
+	}
+	d.configure()
+	return backup.New(d), nil
 }
 
 type db struct {

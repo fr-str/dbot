@@ -6,9 +6,18 @@ package store
 
 import (
 	"database/sql"
+	"time"
 
 	"dbot/pkg/db/types"
 )
+
+type Backup struct {
+	MsgID       int64
+	AuthorID    int64
+	Content     string
+	Attachments string
+	CreatedAt   time.Time
+}
 
 type Channel struct {
 	Gid       string
@@ -34,7 +43,7 @@ type PlaylistEntry struct {
 	ID         int64
 	PlaylistID int64
 	YoutubeUrl string
-	MinioUrl   string
+	Filepath   string
 	Name       string
 	CreatedAt  sql.NullTime
 	UpdatedAt  sql.NullTime
@@ -58,4 +67,9 @@ type Sound struct {
 	UpdatedAt sql.NullTime
 	DeletedAt sql.NullTime
 	OriginUrl string
+}
+
+type User struct {
+	DiscordID int64
+	Username  string
 }

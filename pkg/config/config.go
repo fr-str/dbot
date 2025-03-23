@@ -27,6 +27,9 @@ var (
 	COOKIE_PATH        string
 
 	FFMPEG_TRANSCODE_PATH string
+	FFMPEG_HW_ACCEL       bool
+
+	BACKUP_DIR string
 
 	// minio
 	MINIO_HOST              string
@@ -47,16 +50,14 @@ func Load() {
 	COOKIE_PATH = env.Get("COOKIE_PATH", "")
 
 	FFMPEG_TRANSCODE_PATH = env.Get("FFMPEG_TRANSCODE_PATH", filepath.Join(os.TempDir(), "dbot", "ffmpeg"))
+	FFMPEG_HW_ACCEL = env.Get("FFMPEG_HW_ACCEL", false)
 
-	// minio
-	MINIO_HOST = env.Get("MINIO_HOST", "")
-	MINIO_ACCESS_KEY_ID = env.Get("MINIO_ACCESS_KEY_ID", "")
-	MINIO_SECRET_ACCESS_KEY = env.Get("MINIO_SECRET_ACCESS_KEY", "")
-	MINIO_DBOT_BUCKET_NAME = env.Get("MINIO_DBOT_BUCKET_NAME", "dbot")
+	BACKUP_DIR = env.Get("BACKUP_DIR", filepath.Join(os.TempDir(), "dbot", "backup"))
 
 	dirs := []string{
 		YTDLP_DOWNLOAD_DIR,
 		FFMPEG_TRANSCODE_PATH,
+		BACKUP_DIR,
 		DB_DIR,
 	}
 

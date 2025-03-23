@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/signal"
 
+	"dbot/pkg/api"
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
-	"dbot/pkg/minio"
 	"dbot/pkg/store"
 	"dbot/pkg/ytdlp"
 
@@ -27,21 +27,22 @@ func main() {
 		panic(err)
 	}
 
-	minClien, err := minio.NewMinioStore(ctx)
-	if err != nil {
-		panic(err)
-	}
+	// minClien, err := minio.NewMinioStore(ctx)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	bot(ctx, db, minClien)
+	bot(ctx, db)
 }
 
-func bot(ctx context.Context, db *store.Queries, minClient minio.Minio) {
+func bot(ctx context.Context, db *store.Queries) {
 	dg, err := discordgo.New(fmt.Sprintf("Bot %s", config.TOKEN))
 	if err != nil {
 		panic(err)
 	}
 
-	dbot.Start(ctx, dg, db, minClient)
+	d := dbot.Start(ctx, dg, db)
+	api.StartServer(d)
 
 	<-ctx.Done()
 	dg.Close()

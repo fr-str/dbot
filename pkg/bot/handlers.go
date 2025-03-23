@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"github.com/fr-str/log"
 )
 
-func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
+func (d *DBot) handlePlay(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
 		Link string                       `opt:"link"`
 		Att  *discordgo.MessageAttachment `opt:"file"`
@@ -47,7 +48,7 @@ func (d *DBot) handlePlay(i *discordgo.InteractionCreate) error {
 	return err
 }
 
-func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
+func (d *DBot) handleWypierdalaj(ctx context.Context, i *discordgo.InteractionCreate) error {
 	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -60,7 +61,7 @@ func (d *DBot) handleWypierdalaj(i *discordgo.InteractionCreate) error {
 	return nil
 }
 
-func (d *DBot) handleMapChannel(i *discordgo.InteractionCreate) error {
+func (d *DBot) handleMapChannel(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
 		Type    string             `opt:"type"`
 		Channel *discordgo.Channel `opt:"channel"`
@@ -92,7 +93,7 @@ func (d *DBot) handleMapChannel(i *discordgo.InteractionCreate) error {
 	return nil
 }
 
-func (d *DBot) handlePause(i *discordgo.InteractionCreate) error {
+func (d *DBot) handlePause(ctx context.Context, i *discordgo.InteractionCreate) error {
 	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -104,7 +105,7 @@ func (d *DBot) handlePause(i *discordgo.InteractionCreate) error {
 	return nil
 }
 
-func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
+func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts SaveSoundParams
 
 	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
@@ -145,7 +146,9 @@ func (d *DBot) handleSound(i *discordgo.InteractionCreate) error {
 	return nil
 }
 
-func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
+func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var opts struct {
 		Link string                       `opt:"link"`
 		Att  *discordgo.MessageAttachment `opt:"file"`
@@ -171,7 +174,7 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 	})
 
 	log.Trace("handleToMP4", log.String("url", url))
-	f, err := d.downloadAsMP4(url)
+	f, err := d.downloadAsMP4(ctx, url)
 	if err != nil {
 		return err
 	}
@@ -190,7 +193,7 @@ func (d *DBot) handleToMP4(i *discordgo.InteractionCreate) error {
 	return err
 }
 
-func (d *DBot) savePlaylist(i *discordgo.InteractionCreate) error {
+func (d *DBot) savePlaylist(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
 		Name string `opt:"name"`
 		Link string `opt:"yt-link"`
@@ -212,9 +215,9 @@ func (d *DBot) savePlaylist(i *discordgo.InteractionCreate) error {
 	return d.savePlaylistFromYT(opts.Name, opts.Link, i.GuildID)
 }
 
-func (d *DBot) playPlaylistFromDB(i *discordgo.InteractionCreate) error {
+func (d *DBot) playPlaylistFromDB(ctx context.Context, i *discordgo.InteractionCreate) error {
 	if isAutocompleteInteraction(i) {
-		return d.autocompleteForPlayPlaylistFromDB(i)
+		return d.autocompleteForPlayPlaylist(i)
 	}
 	var opts struct {
 		Name string `opt:"name"`
@@ -242,7 +245,7 @@ func (d *DBot) playPlaylistFromDB(i *discordgo.InteractionCreate) error {
 	})
 }
 
-func (d *DBot) autocompleteForPlayPlaylistFromDB(i *discordgo.InteractionCreate) error {
+func (d *DBot) autocompleteForPlayPlaylist(i *discordgo.InteractionCreate) error {
 	names, err := d.Store.PlaylistNames(d.Ctx, i.GuildID)
 	if err != nil {
 		log.Error("failed getting playlist names", log.Err(err))

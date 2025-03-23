@@ -13,6 +13,7 @@ import (
 	"dbot/pkg/config"
 
 	"github.com/fr-str/log"
+	"golang.org/x/net/context"
 )
 
 type YTDLP struct{}
@@ -92,7 +93,7 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 	return meta, nil
 }
 
-func (YTDLP) DownloadVideo(link string) (VideoMeta, error) {
+func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) {
 	cmd := exec.Command(ytdlp, append(videoDownloadCMD, link)...)
 	cmd.Dir = config.YTDLP_DOWNLOAD_DIR
 
@@ -113,6 +114,14 @@ func (YTDLP) DownloadVideo(link string) (VideoMeta, error) {
 	if err != nil {
 		return meta, err
 	}
+
+	go func() {
+		<-ctx.Done()
+		err := os.Remove(meta.Filepath)
+		if err != nil {
+			log.Error("failed to delete file", log.Err(err))
+		}
+	}()
 
 	return meta, nil
 }

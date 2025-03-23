@@ -8,7 +8,6 @@ import (
 
 	dbot "dbot/pkg/bot"
 	"dbot/pkg/db"
-	"dbot/pkg/minio"
 )
 
 func main() {
@@ -19,12 +18,9 @@ func main() {
 		panic(err)
 	}
 
-	minIO, _ := minio.NewMinioStore(ctx)
-
 	d := dbot.DBot{
 		Ctx:   ctx,
 		Store: db,
-		MinIO: minIO,
 	}
 
 	for k, v := range parse() {

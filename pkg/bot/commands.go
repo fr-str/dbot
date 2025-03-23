@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"context"
 	"dbot/pkg/config"
 
 	"github.com/bwmarrin/discordgo"
@@ -135,7 +136,7 @@ func (d *DBot) ClearCmds(s *discordgo.Session) {
 	}
 }
 
-type cmdHandler = func(*discordgo.InteractionCreate) error
+type cmdHandler = func(context.Context, *discordgo.InteractionCreate) error
 
 func (d *DBot) CommandHandlers() map[string]cmdHandler {
 	return map[string]cmdHandler{
