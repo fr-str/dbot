@@ -168,12 +168,7 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 		Assert(len(s.Gid) > 0)
 		Assert(len(s.Url) > 0)
 		Assert(len(s.Aliases) > 0)
-		url, err := d.getLinkFromSoundKey(s.Url)
-		if err != nil {
-			log.Error(err.Error())
-			return
-		}
-		d.MusicPlayer.PlaySound(url)
+		d.MusicPlayer.PlaySound(s.Url)
 	}
 }
 
@@ -229,14 +224,8 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 
 	log.Trace("isKnownSound", log.Any("sound.Url", sound.Url))
 
-	url, err := d.getLinkFromSoundKey(sound.Url)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-
-	log.Trace("isKnownSound", log.Any("url", url))
-	d.MusicPlayer.PlaySound(url)
+	log.Trace("isKnownSound", log.Any("url", sound.Url))
+	d.MusicPlayer.PlaySound(sound.Url)
 }
 
 func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {

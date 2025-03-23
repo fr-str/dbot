@@ -11,14 +11,14 @@ import (
 )
 
 const addPlaylistEntry = `-- name: AddPlaylistEntry :one
-INSERT INTO playlist_entries (playlist_id, youtube_url, minio_url, name)
-VALUES (?, ?, ?, ?) RETURNING id, playlist_id, youtube_url, minio_url, name, created_at, updated_at, deleted_at
+INSERT INTO playlist_entries (playlist_id, youtube_url, filepath, name)
+VALUES (?, ?, ?, ?) RETURNING id, playlist_id, youtube_url, filepath, name, created_at, updated_at, deleted_at
 `
 
 type AddPlaylistEntryParams struct {
 	PlaylistID int64
 	YoutubeUrl string
-	MinioUrl   string
+	Filepath   string
 	Name       string
 }
 
@@ -27,7 +27,7 @@ func (q *Queries) AddPlaylistEntry(ctx context.Context, arg AddPlaylistEntryPara
 	row := q.db.QueryRowContext(ctx, addPlaylistEntry,
 		arg.PlaylistID,
 		arg.YoutubeUrl,
-		arg.MinioUrl,
+		arg.Filepath,
 		arg.Name,
 	)
 	var i PlaylistEntry
@@ -35,7 +35,7 @@ func (q *Queries) AddPlaylistEntry(ctx context.Context, arg AddPlaylistEntryPara
 		&i.ID,
 		&i.PlaylistID,
 		&i.YoutubeUrl,
-		&i.MinioUrl,
+		&i.Filepath,
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -108,7 +108,7 @@ func (q *Queries) GetPlaylist(ctx context.Context, arg GetPlaylistParams) (GetPl
 }
 
 const listPlaylistEntries = `-- name: ListPlaylistEntries :many
-SELECT id, playlist_id, youtube_url, minio_url, name, created_at, updated_at
+SELECT id, playlist_id, youtube_url, filepath, name, created_at, updated_at
 FROM playlist_entries
 WHERE playlist_id = ? AND deleted_at IS NULL
 ORDER BY created_at
@@ -118,7 +118,7 @@ type ListPlaylistEntriesRow struct {
 	ID         int64
 	PlaylistID int64
 	YoutubeUrl string
-	MinioUrl   string
+	Filepath   string
 	Name       string
 	CreatedAt  sql.NullTime
 	UpdatedAt  sql.NullTime
@@ -138,7 +138,7 @@ func (q *Queries) ListPlaylistEntries(ctx context.Context, playlistID int64) ([]
 			&i.ID,
 			&i.PlaylistID,
 			&i.YoutubeUrl,
-			&i.MinioUrl,
+			&i.Filepath,
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,

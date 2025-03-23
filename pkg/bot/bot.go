@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -13,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"dbot/pkg/backup"
 	"dbot/pkg/cache"
@@ -22,7 +22,6 @@ import (
 	"dbot/pkg/dbg"
 	. "dbot/pkg/dbg"
 	jobrunner "dbot/pkg/job_runner"
-	miniocli "dbot/pkg/minio"
 	"dbot/pkg/player"
 	"dbot/pkg/store"
 	"dbot/pkg/ytdlp"
@@ -38,7 +37,6 @@ type DBot struct {
 	Ctx    context.Context
 	Store  *store.Queries
 	Backup *backup.Queries
-	MinIO  miniocli.Minio
 
 	*discordgo.Session
 	ytdlp.YTDLP
@@ -74,7 +72,7 @@ func startJobRunner(ctx context.Context, db *store.Queries) jobrunner.Runner {
 	return runner
 }
 
-func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries, minIO miniocli.Minio) *DBot {
+func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries) *DBot {
 	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", "")
 	if err != nil {
 		panic(err)
@@ -92,7 +90,6 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries,
 		MusicPlayer: player.NewPlayer(audioCache),
 		Store:       dbstore,
 		Backup:      backupDB,
-		MinIO:       minIO,
 	}
 
 	runner := startJobRunner(ctx, dbstore)
@@ -202,7 +199,13 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 		return fmt.Errorf("failed to download file '%s': %w", params.Link, err)
 	}
 
-	info, err := d.backupFile(fmt.Sprintf("%s.mp4", aliases[0]), params.GID, f.body)
+	info, err := d.backupFile(backupFileParams{
+		Name:        fmt.Sprintf("%s.mp4", aliases[0]),
+		GID:         params.GID,
+		Dirs:        "sounds",
+		PrependTime: false,
+		File:        f.body,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to backup file '%s': %w", params.Link, err)
 	}
@@ -222,59 +225,6 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 
 	return nil
 }
-
-func linkFromMinioUploadInfo(key string) string {
-	Assert(len(key) > 0, "")
-	return fmt.Sprintf("%s,%s", config.MINIO_DBOT_BUCKET_NAME, key)
-}
-
-// func (d *DBot) storeMediaInMinIOAsMP4(name, url, gID string) (minio.UploadInfo, error) {
-// 	file, err := d.downloadAsMP4(url)
-// 	if err != nil {
-// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
-// 	}
-// 	defer file.Close()
-//
-// 	err = d.MinIO.CreateFolderStructure(d.Ctx, gID)
-// 	if err != nil {
-// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
-// 	}
-//
-// 	defer file.body.Close()
-// 	info, err := d.MinIO.PutObject(d.Ctx,
-// 		config.MINIO_DBOT_BUCKET_NAME,
-// 		nameWithExt(name),
-// 		file.body,
-// 		file.size,
-// 		minio.PutObjectOptions{
-// 			ContentType: file.contentType,
-// 		})
-// 	if err != nil {
-// 		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
-// 	}
-// 	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
-//
-// 	return info, nil
-// }
-
-// func (d *DBot) putInMinIO(folder string, filename string, file io.Reader) (minio.UploadInfo, error) {
-// 	err := d.MinIO.CreateFolderStructure(d.Ctx, folder)
-// 	if err != nil {
-// 		return minio.UploadInfo{}, fmt.Errorf("storeMediaInMinIO: %w", err)
-// 	}
-//
-// 	name := filepath.Join(folder, filename)
-// 	info, err := d.MinIO.PutObject(d.Ctx,
-// 		config.MINIO_DBOT_BUCKET_NAME,
-// 		name,
-// 		file,
-// 		int64(-1), minio.PutObjectOptions{})
-// 	if err != nil {
-// 		return minio.UploadInfo{}, fmt.Errorf("failed to put in minio, '%s': %w", name, err)
-// 	}
-// 	log.Trace("uploadAttachmentToMinIO", log.JSON(info))
-// 	return info, nil
-// }
 
 type file struct {
 	body        io.ReadCloser
@@ -371,19 +321,36 @@ func (d *DBot) download(ctx context.Context, url string) (file, error) {
 
 // os.File has to be closed manualy
 func (d *DBot) convertToMP4(file string) (*os.File, error) {
+	buf := bytes.NewBuffer(nil)
 	name := strings.ReplaceAll(file, filepath.Ext(file), "")
 	mp4Path := filepath.Join(config.FFMPEG_TRANSCODE_PATH, fmt.Sprintf("edit.%s.mp4", filepath.Base(name)))
-	// ffmpeg -i input.mp4 -map 0 -crf 18 -preset slow -b:a 96k -movflags +faststart -pix_fmt yuv420p out.mp4
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
-		"-i", file,
-		"-c:v", "libx264",
-		"-crf", "18",
-		"-preset", "slow",
-		"-map", "0",
-		"-movflags", "+faststart",
-		"-pix_fmt", "yuv420p",
-		mp4Path,
-	)
+	cmd := exec.Command("ffmpeg")
+	if config.FFMPEG_HW_ACCEL {
+		cmd.Args = append(cmd.Args,
+			"-init_hw_device", "qsv=hw",
+			"-filter_hw_device", "hw",
+			"-i", file,
+			"-c:v", "h264_qsv",
+			"-global_quality", "23",
+			"-look_ahead", "1",
+			"-preset", "veryslow",
+			"-movflags", "+faststart",
+			mp4Path,
+		)
+	} else {
+		cmd.Args = append(cmd.Args, "-hide_banner", "-loglevel", "error",
+			"-i", file,
+			"-c:v", "libx264",
+			"-crf", "18",
+			"-preset", "slow",
+			"-map", "0",
+			"-movflags", "+faststart",
+			"-pix_fmt", "yuv420p",
+			mp4Path,
+		)
+	}
+	cmd.Stdout = buf
+	cmd.Stderr = buf
 
 	log.Info("convertToMP4", log.String("cmd", cmd.String()))
 	err := cmd.Start()
@@ -393,7 +360,7 @@ func (d *DBot) convertToMP4(file string) (*os.File, error) {
 
 	err = cmd.Wait()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cmd.Wait failed: %w,\n%s", err, buf.String())
 	}
 
 	f, err := os.Open(mp4Path)
@@ -437,20 +404,6 @@ func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) 
 	}
 
 	return ch, nil
-}
-
-func (d *DBot) getLinkFromSoundKey(key string) (string, error) {
-	bucket, key, found := strings.Cut(key, ",")
-	if !found {
-		log.Warn(fmt.Sprintf("could not find separator in link '%s'", key))
-		return "", errors.New(fmt.Sprintf("could not find separator in link '%s'", key))
-	}
-
-	url, err := d.MinIO.PresignedGetObject(d.Ctx, bucket, key, 5*time.Hour, nil)
-	if err != nil {
-		return "", err
-	}
-	return url.String(), nil
 }
 
 func (d *DBot) wypierdalajZVC(gID string) error {
@@ -598,12 +551,7 @@ func (d *DBot) loadPlaylistFromDB(name string, gID string) error {
 
 	var topErr error
 	for _, elem := range list {
-		link, err := d.getLinkFromSoundKey(elem.MinioUrl)
-		if err != nil {
-			topErr = errors.Join(topErr, err)
-			continue
-		}
-		d.MusicPlayer.Add(link)
+		d.MusicPlayer.Add(elem.Filepath)
 	}
 	if topErr != nil {
 		log.Error("failed getting Link from Key", log.Err(topErr))

@@ -43,7 +43,7 @@ type PlaylistEntry struct {
 	ID         int64
 	PlaylistID int64
 	YoutubeUrl string
-	MinioUrl   string
+	Filepath   string
 	Name       string
 	CreatedAt  sql.NullTime
 	UpdatedAt  sql.NullTime

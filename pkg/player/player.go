@@ -1,16 +1,17 @@
 package player
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"dbot/pkg/cache"
+	"dbot/pkg/config"
 	. "dbot/pkg/dbg"
 	"dbot/pkg/ytdlp"
 
@@ -158,19 +159,11 @@ func (p *Player) soundLoop() {
 }
 
 func (p *Player) fetch(audio *Audio) error {
-	czary := czaryMaryŻebyDziałało(audio.Link)
 	Assert(p.VC != nil, "nil VC")
-	au, err := p.cache.GetAudio(context.Background(), cache.GetAudioParams{
-		Gid:  p.VC.GuildID,
-		Link: czary,
-	})
-	if err == nil {
-		log.Trace("audio cache HIT", log.JSON(au))
-		audio.Filepath = au.Filepath
-		audio.Title = au.Title
+	if strings.Contains(audio.Link, p.VC.GuildID) {
+		audio.Filepath = filepath.Join(config.BACKUP_DIR, audio.Link)
 		return nil
 	}
-	log.Trace("audio cache MISS", log.String("link", audio.Link), log.String("gid", p.VC.GuildID))
 
 	meta, err := p.YTDLP.DownloadAudio(audio.Link)
 	if err != nil {
@@ -179,32 +172,7 @@ func (p *Player) fetch(audio *Audio) error {
 
 	audio.Filepath = meta.Filepath
 	audio.Title = meta.Title
-	// TODO: temprary, will probably store everything in minio
-	if !strings.Contains(audio.Link, "youtu") {
-		err = p.cache.SetAudio(context.Background(), cache.SetAudioParams{
-			Gid:      p.VC.GuildID,
-			Link:     czary,
-			Filepath: audio.Filepath,
-			Title:    audio.Title,
-		})
-		if err != nil {
-			log.Warn("failed to set in cache", log.Err(err))
-		}
-	}
 	return nil
-}
-
-func czaryMaryŻebyDziałało(link string) string {
-	if strings.Contains(link, "youtu") {
-		return link
-	}
-
-	url, _, found := strings.Cut(link, "?")
-	if !found {
-		return link
-	}
-
-	return url
 }
 
 func (p *Player) play(audio *Audio) error {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"dbot/pkg/backup"
@@ -84,7 +85,13 @@ func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
 		}
 		defer resp.Body.Close()
 
-		info, err := d.backupFile(a.Filename, m.GuildID, resp.Body)
+		info, err := d.backupFile(backupFileParams{
+			Name:        a.Filename,
+			GID:         m.GuildID,
+			Dirs:        "attachments",
+			PrependTime: true,
+			File:        resp.Body,
+		})
 		if err != nil {
 			return "", fmt.Errorf("store attachment '%s': %w", a.URL, err)
 		}
@@ -115,25 +122,39 @@ type backupFile struct {
 	Size int64
 }
 
-func (d *DBot) backupFile(name string, gID string, file io.Reader) (backupFile, error) {
+type backupFileParams struct {
+	Name        string
+	Dirs        string
+	GID         string
+	PrependTime bool
+	File        io.Reader
+}
+
+func (d *DBot) backupFile(params backupFileParams) (backupFile, error) {
 	var backupFile backupFile
-	if err := os.MkdirAll(filepath.Join(config.BACKUP_DIR, gID), 0o755); err != nil {
+	dir := filepath.Join(config.BACKUP_DIR, params.GID, params.Dirs)
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return backupFile, fmt.Errorf("failed to create dir: %w", err)
 	}
 
-	f, err := os.Create(filepath.Join(config.BACKUP_DIR, gID, fmt.Sprintf("%d-%s", time.Now().Unix(), filepath.Base(name))))
+	name := filepath.Base(params.Name)
+	if params.PrependTime {
+		name = fmt.Sprintf("%d-%s", time.Now().Unix(), params.Name)
+	}
+	f, err := os.Create(filepath.Join(dir, name))
 	if err != nil {
 		return backupFile, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer f.Close()
 
-	n, err := io.Copy(f, file)
+	n, err := io.Copy(f, params.File)
 	if err != nil {
 		return backupFile, fmt.Errorf("failed to copy file: %w", err)
 	}
 
 	log.Trace("backupFile", log.String("name", name), log.Int("size", n))
-	backupFile.Name = f.Name()
+	backupFile.Name = strings.TrimLeft(f.Name(), config.BACKUP_DIR)
 	backupFile.Size = n
 
 	return backupFile, nil
