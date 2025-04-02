@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
+	"time"
 
 	"github.com/fr-str/log"
 )
@@ -14,27 +15,79 @@ import (
 var probeCMD = []string{
 	"-v", "error",
 	"-show_streams",
+	"-show_format",
 	"-print_format", "json",
 }
 
+type StringInt int
+
+func (i *StringInt) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+
+	*i = StringInt(v)
+	return nil
+}
+
+type MaybeTimeDuration struct {
+	time.Duration
+}
+
+func (t *MaybeTimeDuration) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		// assume seconds
+		v, err = time.ParseDuration(s + "s")
+		if err != nil {
+			return err
+		}
+	}
+
+	*t = MaybeTimeDuration{v}
+	return nil
+}
+
 type (
-	Streams []Stream
-	Stream  struct {
-		CodecName      string `json:"codec_name"`
-		Profile        string `json:"profile"`
-		CodecType      string `json:"codec_type"`
-		CodecTagString string `json:"codec_tag_string"`
-		Width          int    `json:"width,omitempty"`
-		Height         int    `json:"height,omitempty"`
-		CodedWidth     int    `json:"coded_width,omitempty"`
-		CodedHeight    int    `json:"coded_height,omitempty"`
-		PixFmt         string `json:"pix_fmt,omitempty"`
-		Level          int    `json:"level,omitempty"`
-		ColorRange     string `json:"color_range,omitempty"`
-		StartTime      string `json:"start_time"`
-		DurationTs     int    `json:"duration_ts"`
-		Duration       string `json:"duration"`
-		BitRate        string `json:"bit_rate"`
+	Streams struct {
+		Streams []Stream `json:"streams"`
+		// getting format since video strams don't always have duration and bitrate for some reason
+		Format struct {
+			Filename string            `json:"filename"`
+			Duration MaybeTimeDuration `json:"duration"`
+			Size     StringInt         `json:"size"`
+			BitRate  StringInt         `json:"bit_rate"`
+		}
+	}
+	Stream struct {
+		CodecName      string            `json:"codec_name"`
+		Profile        string            `json:"profile"`
+		CodecType      string            `json:"codec_type"`
+		CodecTagString string            `json:"codec_tag_string"`
+		Width          int               `json:"width,omitempty"`
+		Height         int               `json:"height,omitempty"`
+		CodedWidth     int               `json:"coded_width,omitempty"`
+		CodedHeight    int               `json:"coded_height,omitempty"`
+		PixFmt         string            `json:"pix_fmt,omitempty"`
+		Level          int               `json:"level,omitempty"`
+		ColorRange     string            `json:"color_range,omitempty"`
+		StartTime      string            `json:"start_time"`
+		DurationTs     int               `json:"duration_ts"`
+		Duration       MaybeTimeDuration `json:"duration"`
+		BitRate        StringInt         `json:"bit_rate"`
 
 		SampleFmt      string `json:"sample_fmt,omitempty"`
 		SampleRate     string `json:"sample_rate,omitempty"`
@@ -44,26 +97,6 @@ type (
 		InitialPadding int    `json:"initial_padding,omitempty"`
 	}
 )
-
-func (f *Streams) UnmarshalJSON(src []byte) error {
-	var tmp struct {
-		Streams json.RawMessage `json:"streams"`
-	}
-	err := json.Unmarshal(src, &tmp)
-	if err != nil {
-		return err
-	}
-
-	type alias Streams
-	var dupa alias
-	err = json.Unmarshal(tmp.Streams, &dupa)
-	if err != nil {
-		return fmt.Errorf("dupa2: %w", err)
-	}
-	*f = Streams(dupa)
-
-	return nil
-}
 
 func Probe(path string) (Streams, error) {
 	cmd := exec.Command("ffprobe", append(probeCMD, path)...)

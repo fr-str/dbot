@@ -27,11 +27,6 @@ func main() {
 		panic(err)
 	}
 
-	// minClien, err := minio.NewMinioStore(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
 	bot(ctx, db)
 }
 

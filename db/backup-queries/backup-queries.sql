@@ -9,8 +9,11 @@ WHERE msg_id = :msg_id;
 
 
 -- name: InsertArtefact :exec
-INSERT INTO artefacts (path, media_type, hash, created_at)
-VALUES (:path, :media_type, :hash, :created_at);
+INSERT INTO artefacts (origin_url,path, media_type, hash, created_at)
+VALUES (:origin_url,:path, :media_type, :hash, :created_at);
+
+-- name: GetArtefact :one
+SELECT * FROM artefacts WHERE origin_url = :origin_url;
 
 
 -- name: UpsertUser :one

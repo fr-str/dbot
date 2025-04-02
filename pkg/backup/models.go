@@ -9,7 +9,7 @@ import (
 )
 
 type Artefact struct {
-	ID        int64
+	OriginUrl string
 	Path      string
 	MediaType string
 	Hash      string

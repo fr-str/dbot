@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS msg_backup (
 );
 
 CREATE TABLE IF NOT EXISTS artefacts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    origin_url TEXT PRIMARY KEY,
     path TEXT NOT NULL,
     media_type TEXT NOT NULL,
     hash TEXT NOT NULL,

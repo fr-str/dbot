@@ -178,6 +178,7 @@ func (p *Player) fetch(audio *Audio) error {
 func (p *Player) play(audio *Audio) error {
 	p.Playing.Store(true)
 	defer p.Playing.Store(false)
+	defer os.Remove(audio.Filepath)
 	log.Debug("play", log.JSON(audio))
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", audio.Filepath,

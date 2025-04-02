@@ -3,12 +3,14 @@ package dbot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
+	"dbot/pkg/config"
 	. "dbot/pkg/dbg"
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/ytdlp"
@@ -32,7 +34,14 @@ func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Ses
 		if h, ok := cmdHandlers[i.ApplicationCommandData().Name]; ok {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			err := h(ctx, i)
+			dir, err := os.MkdirTemp(config.TMP_PATH, strconv.Itoa(int(time.Now().UnixNano())))
+			if err != nil {
+				log.Error("dupa", log.Err(err))
+			}
+			defer os.RemoveAll(dir)
+
+			ctx = context.WithValue(ctx, config.DirKey, dir)
+			err = h(ctx, i)
 			if err != nil {
 				log.Error(err.Error())
 
@@ -72,7 +81,6 @@ func (d *DBot) messagesListener(_ *discordgo.Session, m *discordgo.MessageCreate
 	isKnownSound(d, m)
 	soundAll(d, m)
 	transcodeToh264(d, m)
-	// testPlay(d, m)
 }
 
 func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
@@ -97,13 +105,13 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 			continue
 		}
 
-		streams, err := ffmpeg.Probe(meta.Filepath)
+		videoInfo, err := ffmpeg.Probe(meta.Filepath)
 		if err != nil {
 			log.Error(err.Error())
 			continue
 		}
-		for i := range streams {
-			s := &streams[i]
+		for i := range videoInfo.Streams {
+			s := &videoInfo.Streams[i]
 			if s.CodecType != "video" {
 				continue
 			}
@@ -115,7 +123,7 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 			d.MessageReactionAdd(m.ChannelID, m.ID, "bosy:1220157705273086002")
 
 			// transcode and upload
-			f, err := d.convertToMP4(meta.Filepath)
+			f, err := ffmpeg.ConvertToMP4(ctx, meta.Filepath)
 			if err != nil {
 				log.Error("transcodeAndReupload", log.Err(err))
 				return
@@ -170,38 +178,6 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 		Assert(len(s.Aliases) > 0)
 		d.MusicPlayer.PlaySound(s.Url)
 	}
-}
-
-func testPlay(d *DBot, m *discordgo.MessageCreate) {
-	err := d.connectVoice(m.GuildID, m.Author.ID)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-
-	d.MusicPlayer.Add(m.Content)
-}
-
-func (d *DBot) connectVoice(gID, uID string) error {
-	// skip if we are already connected
-	if d.MusicPlayer.VC != nil {
-		return nil
-	}
-
-	channel, err := d.getUserVC(d.Session, gID, uID)
-	if err != nil {
-		return fmt.Errorf("failed to find User VC: %w", err)
-	}
-
-	vc, err := d.ChannelVoiceJoin(gID, channel.ChannelID, false, false)
-	if err != nil {
-		return fmt.Errorf("failed to join VC: %w", err)
-	}
-
-	// vc.LogLevel = 3
-	d.MusicPlayer.VC = vc
-
-	return nil
 }
 
 func isKnownSound(d *DBot, m *discordgo.MessageCreate) {

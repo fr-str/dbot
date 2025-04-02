@@ -20,7 +20,6 @@ import (
 	"github.com/fr-str/log/level"
 	"github.com/pressly/goose/v3"
 	"modernc.org/sqlite"
-	_ "modernc.org/sqlite"
 )
 
 func (s db) configure() {
@@ -34,7 +33,7 @@ func (s db) configure() {
 }
 
 func ConnectAudioCache(ctx context.Context, filename string, schema string) (*cache.Queries, error) {
-	w, err := sql.Open("sqlite", filepath.Join(config.YTDLP_DOWNLOAD_DIR, filename))
+	w, err := sql.Open("sqlite", filepath.Join(config.TMP_PATH, filename))
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"dbot/pkg/backup"
 	"dbot/pkg/config"
+	. "dbot/pkg/dbg"
 
 	"github.com/fr-str/log"
 
@@ -85,25 +87,17 @@ func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
 		}
 		defer resp.Body.Close()
 
-		info, err := d.backupFile(backupFileParams{
+		info, err := d.backupArtefact(d.Ctx, BackupFileParams{
 			Name:        a.Filename,
-			GID:         m.GuildID,
+			ContentType: a.ContentType,
 			Dirs:        "attachments",
 			PrependTime: true,
+			OriginUrl:   a.URL,
+			GID:         m.GuildID,
 			File:        resp.Body,
 		})
 		if err != nil {
-			return "", fmt.Errorf("store attachment '%s': %w", a.URL, err)
-		}
-
-		err = d.Backup.InsertArtefact(d.Ctx, backup.InsertArtefactParams{
-			Path:      info.Name,
-			MediaType: a.ContentType,
-			Hash:      info.Name,
-			CreatedAt: time.Now(),
-		})
-		if err != nil {
-			return "", fmt.Errorf("insert artefact: %w", err)
+			return "", fmt.Errorf("backup artefact: %w", err)
 		}
 
 		att[i] = info.Name
@@ -117,21 +111,47 @@ func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
 	return string(b), nil
 }
 
-type backupFile struct {
+func (d *DBot) backupArtefact(ctx context.Context, params BackupFileParams) (BackupFile, error) {
+	Assert(len(params.GID) > 0)
+	Assert(len(params.Dirs) > 0)
+	Assert(len(params.Name) > 0)
+
+	info, err := d.backupFile(params)
+	if err != nil {
+		return info, fmt.Errorf("backup artefact '%s': %w", params.Name, err)
+	}
+
+	err = d.Backup.InsertArtefact(ctx, backup.InsertArtefactParams{
+		Path:      info.Name,
+		MediaType: params.ContentType,
+		OriginUrl: params.OriginUrl,
+		Hash:      info.Name,
+		CreatedAt: time.Now(),
+	})
+	if err != nil {
+		return info, fmt.Errorf("insert artefact: %w", err)
+	}
+
+	return info, nil
+}
+
+type BackupFile struct {
 	Name string
 	Size int64
 }
 
-type backupFileParams struct {
+type BackupFileParams struct {
 	Name        string
 	Dirs        string
 	GID         string
+	ContentType string
+	OriginUrl   string
 	PrependTime bool
 	File        io.Reader
 }
 
-func (d *DBot) backupFile(params backupFileParams) (backupFile, error) {
-	var backupFile backupFile
+func (d *DBot) backupFile(params BackupFileParams) (BackupFile, error) {
+	var backupFile BackupFile
 	dir := filepath.Join(config.BACKUP_DIR, params.GID, params.Dirs)
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"dbot/pkg/ffmpeg"
 	"dbot/pkg/store"
 
 	"github.com/bwmarrin/discordgo"
@@ -115,9 +116,6 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 	log.Debug("handleSounds", log.JSON(opts))
 
 	opts.Link = strings.TrimSpace(opts.Link)
-	// if len(options.Aliases) == 0 {
-	// 	return errors.New("you need to provide aliases and a link or attachment")
-	// }
 
 	resolved := i.ApplicationCommandData().Resolved
 	if resolved == nil && len(opts.Link) == 0 {
@@ -128,8 +126,6 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 		opts.Link = resolved.Attachments[opts.Att.ID].URL
 	}
 
-	if opts.Att != nil {
-	}
 	d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -138,7 +134,7 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 	})
 
 	opts.GID = i.GuildID
-	err = d.SaveSound(opts)
+	err = d.SaveSound(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -147,8 +143,6 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 }
 
 func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	var opts struct {
 		Link string                       `opt:"link"`
 		Att  *discordgo.MessageAttachment `opt:"file"`
@@ -174,18 +168,41 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	})
 
 	log.Trace("handleToMP4", log.String("url", url))
-	f, err := d.downloadAsMP4(ctx, url)
-	if err != nil {
-		return err
-	}
-	defer f.body.Close()
 
+	info, err := d.DownloadVideo(ctx, url)
+	if err != nil {
+		return fmt.Errorf("failed downloading video: %w", err)
+	}
+
+	f, err := ffmpeg.ConvertToMP4(ctx, info.Filepath)
+	if err != nil {
+		return fmt.Errorf("failed converting to mp4: %w", err)
+	}
+
+	stat, err := f.Stat()
+	log.Trace("handleToMP4", log.String("mp4Path", f.Name()), log.String("file", f.Name()), log.Int("size", stat.Size()))
+	if err != nil {
+		return fmt.Errorf("failed getting file size: %w", err)
+	}
+
+	if stat.Size() > 10*1_000_000*8 {
+		log.Info("failed converting to mp4, trying to convert to discord mp4", log.Err(err))
+		msg := "file is too big, reducing bitrate and resolution and running duble pass"
+		d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &msg,
+		})
+
+		f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath)
+		if err != nil {
+			return fmt.Errorf("failed converting to mp4: %w", err)
+		}
+	}
 	_, err = d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
 		Files: []*discordgo.File{
 			{
 				Name:        "dupa.mp4",
 				ContentType: "video/mp4",
-				Reader:      f.body,
+				Reader:      f,
 			},
 		},
 	})

@@ -10,12 +10,30 @@ import (
 	"time"
 )
 
+const getArtefact = `-- name: GetArtefact :one
+SELECT origin_url, path, media_type, hash, created_at FROM artefacts WHERE origin_url = ?1
+`
+
+func (q *Queries) GetArtefact(ctx context.Context, originUrl string) (Artefact, error) {
+	row := q.db.QueryRowContext(ctx, getArtefact, originUrl)
+	var i Artefact
+	err := row.Scan(
+		&i.OriginUrl,
+		&i.Path,
+		&i.MediaType,
+		&i.Hash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertArtefact = `-- name: InsertArtefact :exec
-INSERT INTO artefacts (path, media_type, hash, created_at)
-VALUES (?1, ?2, ?3, ?4)
+INSERT INTO artefacts (origin_url,path, media_type, hash, created_at)
+VALUES (?1,?2, ?3, ?4, ?5)
 `
 
 type InsertArtefactParams struct {
+	OriginUrl string
 	Path      string
 	MediaType string
 	Hash      string
@@ -24,6 +42,7 @@ type InsertArtefactParams struct {
 
 func (q *Queries) InsertArtefact(ctx context.Context, arg InsertArtefactParams) error {
 	_, err := q.db.ExecContext(ctx, insertArtefact,
+		arg.OriginUrl,
 		arg.Path,
 		arg.MediaType,
 		arg.Hash,

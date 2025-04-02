@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	Prod = "prod"
+	Prod   = "prod"
+	DirKey = "tmp_dir"
 )
 
 var (
@@ -23,11 +24,11 @@ var (
 	TOKEN    string
 	GUILD_ID string
 
-	YTDLP_DOWNLOAD_DIR string
-	COOKIE_PATH        string
+	TMP_PATH string
 
-	FFMPEG_TRANSCODE_PATH string
-	FFMPEG_HW_ACCEL       bool
+	COOKIE_PATH string
+
+	FFMPEG_HW_ACCEL bool
 
 	BACKUP_DIR string
 
@@ -46,17 +47,15 @@ func Load() {
 	TOKEN = env.Get("TOKEN", "")
 	GUILD_ID = env.Get("GUILD_ID", "")
 
-	YTDLP_DOWNLOAD_DIR = env.Get("YTDLP_DOWNLOAD_DIR", filepath.Join(os.TempDir(), "dbot"))
+	TMP_PATH = env.Get("TMP_PATH", filepath.Join(os.TempDir(), "dbot"))
+
 	COOKIE_PATH = env.Get("COOKIE_PATH", "")
 
-	FFMPEG_TRANSCODE_PATH = env.Get("FFMPEG_TRANSCODE_PATH", filepath.Join(os.TempDir(), "dbot", "ffmpeg"))
 	FFMPEG_HW_ACCEL = env.Get("FFMPEG_HW_ACCEL", false)
 
 	BACKUP_DIR = env.Get("BACKUP_DIR", filepath.Join(os.TempDir(), "dbot", "backup"))
 
 	dirs := []string{
-		YTDLP_DOWNLOAD_DIR,
-		FFMPEG_TRANSCODE_PATH,
 		BACKUP_DIR,
 		DB_DIR,
 	}

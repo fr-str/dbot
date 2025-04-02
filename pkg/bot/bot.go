@@ -1,26 +1,21 @@
 package dbot
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"dbot/pkg/backup"
 	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
-	"dbot/pkg/dbg"
 	. "dbot/pkg/dbg"
+	"dbot/pkg/ffmpeg"
 	jobrunner "dbot/pkg/job_runner"
 	"dbot/pkg/player"
 	"dbot/pkg/store"
@@ -63,7 +58,7 @@ var normalizeReplacer = strings.NewReplacer(
 )
 
 func normalize(s string) string {
-	return strings.ToLower(normalizeReplacer.Replace(s))
+	return normalizeReplacer.Replace(strings.ToLower(s))
 }
 
 func startJobRunner(ctx context.Context, db *store.Queries) jobrunner.Runner {
@@ -94,6 +89,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 
 	runner := startJobRunner(ctx, dbstore)
 	runner.RegisterJob(DownloadJob, d.downloadAsync)
+	runner.RegisterJob(BackupJob, d.backupJob)
 
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()
@@ -151,27 +147,33 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 	return &d
 }
 
+func (d *DBot) connectVoice(gID, uID string) error {
+	// skip if we are already connected
+	if d.MusicPlayer.VC != nil {
+		return nil
+	}
+
+	channel, err := d.getUserVC(d.Session, gID, uID)
+	if err != nil {
+		return fmt.Errorf("failed to find User VC: %w", err)
+	}
+
+	vc, err := d.ChannelVoiceJoin(gID, channel.ChannelID, false, false)
+	if err != nil {
+		return fmt.Errorf("failed to join VC: %w", err)
+	}
+
+	// vc.LogLevel = 3
+	d.MusicPlayer.VC = vc
+
+	return nil
+}
+
 const (
 	musicChannel = "music"
 	errorChannel = "error"
 	adminChannel = "admin"
 )
-
-func nameWithExt(name string) string {
-	fileName, ext, found := strings.Cut(name, ".")
-	if !found {
-		// assume mp4
-		newName := fmt.Sprintf("%s.mp4", name)
-		// newName := fmt.Sprintf("%s_%s.mp4", name, uuid.NewString())
-		log.Trace("uniqueVideoName", log.Any("newName", newName))
-		return newName
-	}
-
-	// newName := fmt.Sprintf("%s_%s.%s", fileName, uuid.NewString(), ext)
-	newName := fmt.Sprintf("%s.%s", fileName, ext)
-	log.Trace("uniqueVideoName", log.Any("newName", newName))
-	return newName
-}
 
 type SaveSoundParams struct {
 	GID     string
@@ -182,10 +184,8 @@ type SaveSoundParams struct {
 	Att *discordgo.MessageAttachment `opt:"file"`
 }
 
-func (d *DBot) SaveSound(params SaveSoundParams) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	dbg.Assert(len(params.GID) != 0)
+func (d *DBot) SaveSound(ctx context.Context, params SaveSoundParams) error {
+	Assert(len(params.GID) != 0)
 
 	params.Aliases = normalize(params.Aliases)
 	Assert(len(params.Link) != 0)
@@ -199,176 +199,54 @@ func (d *DBot) SaveSound(params SaveSoundParams) error {
 		return fmt.Errorf("failed to download file '%s': %w", params.Link, err)
 	}
 
-	info, err := d.backupFile(backupFileParams{
-		Name:        fmt.Sprintf("%s.mp4", aliases[0]),
-		GID:         params.GID,
-		Dirs:        "sounds",
-		PrependTime: false,
-		File:        f.body,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to backup file '%s': %w", params.Link, err)
-	}
-
-	log.Trace("SaveSound", log.Any("link", info.Name))
-
+	name := fmt.Sprintf("%s.mp4", aliases[0])
+	log.Trace("SaveSound", log.Any("link", name))
 	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
 		Gid:       params.GID,
-		Url:       info.Name,
+		Url:       name,
 		Aliases:   aliases,
 		OriginUrl: params.Link,
 	})
 	if err != nil {
 		return err
 	}
+	_, err = d.backupFile(BackupFileParams{
+		Name:        fmt.Sprintf("%s.mp4", aliases[0]),
+		GID:         params.GID,
+		Dirs:        "sounds",
+		PrependTime: false,
+		File:        f.File,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to backup file '%s': %w", params.Link, err)
+	}
 	log.Trace("SaveSound", log.JSON(sound))
 
 	return nil
 }
 
-type file struct {
-	body        io.ReadCloser
-	size        int64
-	contentType string
-	ogFile      string
-	ffmpegFile  string
+type MP4File struct {
+	Filepath string
+	Name     string
+	File     *os.File
 }
 
-func (f file) Close() {
-	if f.ogFile == "" && f.ffmpegFile == "" {
-		f.body.Close()
-		return
-	}
-	Assert(len(f.ogFile) > 0)
-	Assert(len(f.ffmpegFile) > 0)
-
-	err := os.Remove(f.ogFile)
-	if err != nil {
-		log.Error("failed to delete ogFile", log.Err(err))
-	}
-
-	err = os.Remove(f.ffmpegFile)
-	if err != nil {
-		log.Error("failed to delete ffmpegFile", log.Err(err))
-	}
-}
-
-// file.body has to be closed after use
-func (d *DBot) downloadAsMP4(ctx context.Context, url string) (file, error) {
-	if strings.Contains(url, "dodupy.dev") {
-		resp, err := http.Get(url)
-		if err != nil {
-			return file{}, fmt.Errorf("failed to get '%s': %w", url, err)
-		}
-
-		return file{
-			body:        resp.Body,
-			size:        resp.ContentLength,
-			contentType: resp.Header.Get("content-type"),
-		}, nil
-	}
-
+func (d *DBot) downloadAsMP4(ctx context.Context, url string) (MP4File, error) {
 	vi, err := d.DownloadVideo(ctx, url)
 	if err != nil {
-		return file{}, fmt.Errorf("'%s': %w", url, err)
+		return MP4File{}, fmt.Errorf("'%s': %w", url, err)
 	}
 
-	f, err := d.convertToMP4(vi.Filepath)
+	f, err := ffmpeg.ConvertToMP4(ctx, vi.Filepath)
 	if err != nil {
-		return file{}, fmt.Errorf("convertToMP4 failed '%s': %w", vi.Filepath, err)
+		return MP4File{}, fmt.Errorf("convertToMP4 failed '%s': %w", vi.Filepath, err)
 	}
 
-	// size is only for optimizing transport to minio
-	// and i don't care enought to get the size here
-	return file{body: f, size: -1, ogFile: vi.Filepath, ffmpegFile: f.Name()}, nil
-}
-
-func (d *DBot) download(ctx context.Context, url string) (file, error) {
-	if strings.Contains(url, "dodupy.dev") {
-		resp, err := http.Get(url)
-		if err != nil {
-			return file{}, fmt.Errorf("failed to get '%s': %w", url, err)
-		}
-
-		go func() {
-			<-ctx.Done()
-			resp.Body.Close()
-		}()
-
-		return file{
-			body:        resp.Body,
-			contentType: resp.Header.Get("content-type"),
-		}, nil
-	}
-
-	vi, err := d.DownloadVideo(ctx, url)
-	if err != nil {
-		return file{}, fmt.Errorf("'%s': %w", url, err)
-	}
-
-	f, err := os.Open(vi.Filepath)
-	if err != nil {
-		return file{}, fmt.Errorf("failed to open file '%s': %w", vi.Filepath, err)
-	}
-
-	go func() {
-		<-ctx.Done()
-		f.Close()
-	}()
-
-	return file{body: f}, nil
-}
-
-// os.File has to be closed manualy
-func (d *DBot) convertToMP4(file string) (*os.File, error) {
-	buf := bytes.NewBuffer(nil)
-	name := strings.ReplaceAll(file, filepath.Ext(file), "")
-	mp4Path := filepath.Join(config.FFMPEG_TRANSCODE_PATH, fmt.Sprintf("edit.%s.mp4", filepath.Base(name)))
-	cmd := exec.Command("ffmpeg")
-	if config.FFMPEG_HW_ACCEL {
-		cmd.Args = append(cmd.Args,
-			"-init_hw_device", "qsv=hw",
-			"-filter_hw_device", "hw",
-			"-i", file,
-			"-c:v", "h264_qsv",
-			"-global_quality", "23",
-			"-look_ahead", "1",
-			"-preset", "veryslow",
-			"-movflags", "+faststart",
-			mp4Path,
-		)
-	} else {
-		cmd.Args = append(cmd.Args, "-hide_banner", "-loglevel", "error",
-			"-i", file,
-			"-c:v", "libx264",
-			"-crf", "18",
-			"-preset", "slow",
-			"-map", "0",
-			"-movflags", "+faststart",
-			"-pix_fmt", "yuv420p",
-			mp4Path,
-		)
-	}
-	cmd.Stdout = buf
-	cmd.Stderr = buf
-
-	log.Info("convertToMP4", log.String("cmd", cmd.String()))
-	err := cmd.Start()
-	if err != nil {
-		return nil, fmt.Errorf("cmd.Start failed: %w", err)
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, fmt.Errorf("cmd.Wait failed: %w,\n%s", err, buf.String())
-	}
-
-	f, err := os.Open(mp4Path)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
+	return MP4File{
+		Filepath: vi.Filepath,
+		Name:     vi.Filepath,
+		File:     f,
+	}, nil
 }
 
 func (d *DBot) Ready(s *discordgo.Session, e *discordgo.Ready) {
@@ -441,15 +319,44 @@ func (d *DBot) play(gID, uID string, url string) error {
 			return fmt.Errorf("failed searching: %w", err)
 		}
 	case strings.Contains(url, "/playlist"):
-		err := d.playFromYTPlaylist(url)
+		err := d.playFromYTPlaylist(gID, url)
 		if err != nil {
 			return fmt.Errorf("failed load playlist: %w", err)
 		}
 	default:
+		// art, err := d.Backup.GetArtefact(d.Ctx, url)
+		// if err != nil {
+		// 	go saveInPlayHistory(d, url, gID)
+		// } else {
+		// 	url = art.Path
+		// }
+		// log.Trace("playHistory: artefact already exists")
 		d.MusicPlayer.Add(url)
 	}
 
 	return nil
+}
+
+func saveInPlayHistory(d *DBot, url string, gID string) {
+	meta := BackupFileParams{
+		OriginUrl:   url,
+		GID:         gID,
+		Dirs:        "play_history",
+		PrependTime: false,
+		File:        nil,
+	}
+	jsonMeta, err := json.Marshal(meta)
+	if err != nil {
+		log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
+		return
+	}
+	_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
+		Meta:    string(jsonMeta),
+		JobType: BackupJob,
+	})
+	if err != nil {
+		log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
+	}
 }
 
 func (d *DBot) searchAndPlay(url string) error {
@@ -458,7 +365,7 @@ func (d *DBot) searchAndPlay(url string) error {
 	return nil
 }
 
-func (d *DBot) playFromYTPlaylist(url string) error {
+func (d *DBot) playFromYTPlaylist(gID, url string) error {
 	info, err := d.PlaylistInfo(url)
 	if err != nil {
 		return fmt.Errorf("failed getting playlist info: %w", err)
@@ -473,7 +380,14 @@ func (d *DBot) playFromYTPlaylist(url string) error {
 			)
 			continue
 		}
-		d.MusicPlayer.Add(info.Entries[i].URL)
+		u := info.Entries[i].URL
+		art, err := d.Backup.GetArtefact(d.Ctx, url)
+		if err != nil {
+			go saveInPlayHistory(d, url, gID)
+		} else {
+			u = art.Path
+		}
+		d.MusicPlayer.Add(u)
 	}
 
 	return nil
@@ -549,12 +463,8 @@ func (d *DBot) loadPlaylistFromDB(name string, gID string) error {
 		return fmt.Errorf("could not find playlist: %w", err)
 	}
 
-	var topErr error
 	for _, elem := range list {
 		d.MusicPlayer.Add(elem.Filepath)
-	}
-	if topErr != nil {
-		log.Error("failed getting Link from Key", log.Err(topErr))
 	}
 
 	return nil

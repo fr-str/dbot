@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 
 	"dbot/pkg/config"
 
@@ -28,8 +27,6 @@ func must[T any](v T, err error) T {
 var ErrFailedToDownload = errors.New("yt-dlp: failed to download")
 
 const ytdlp = "yt-dlp"
-
-var once sync.Once
 
 var playlistInfoCMD, videoDownloadCMD, audioDownloadCMD []string
 
@@ -70,7 +67,7 @@ type VideoMeta struct {
 
 func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 	cmd := exec.Command(ytdlp, append(audioDownloadCMD, link)...)
-	cmd.Dir = config.YTDLP_DOWNLOAD_DIR
+	cmd.Dir = config.TMP_PATH
 
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -94,8 +91,12 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 }
 
 func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) {
+	tmpDir, ok := ctx.Value(config.DirKey).(string)
+	if !ok || len(tmpDir) == 0 {
+		return VideoMeta{}, errors.New("nie dałeś temp dira debilu")
+	}
 	cmd := exec.Command(ytdlp, append(videoDownloadCMD, link)...)
-	cmd.Dir = config.YTDLP_DOWNLOAD_DIR
+	cmd.Dir = string(tmpDir)
 
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -115,14 +116,6 @@ func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) 
 		return meta, err
 	}
 
-	go func() {
-		<-ctx.Done()
-		err := os.Remove(meta.Filepath)
-		if err != nil {
-			log.Error("failed to delete file", log.Err(err))
-		}
-	}()
-
 	return meta, nil
 }
 
@@ -140,7 +133,7 @@ type PlaylistMeta struct {
 
 func (YTDLP) PlaylistInfo(link string) (PlaylistMeta, error) {
 	cmd := exec.Command(ytdlp, append(playlistInfoCMD, link)...)
-	cmd.Dir = config.YTDLP_DOWNLOAD_DIR
+	cmd.Dir = config.TMP_PATH
 
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}

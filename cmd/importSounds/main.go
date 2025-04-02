@@ -30,7 +30,7 @@ func main() {
 			Link:    k,
 			Aliases: strings.Join(v, ","),
 		}
-		err := d.SaveSound(params)
+		err := d.SaveSound(ctx, params)
 		if err != nil {
 			panic(err)
 		}
