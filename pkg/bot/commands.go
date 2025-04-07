@@ -2,6 +2,7 @@ package dbot
 
 import (
 	"context"
+
 	"dbot/pkg/config"
 
 	"github.com/bwmarrin/discordgo"
@@ -52,17 +53,18 @@ var cmds = []*discordgo.ApplicationCommand{
 	},
 	{
 		Name:        "sound",
-		Description: "list all or add new sound",
+		Description: "add new sound",
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "link",
-				Description: "link to audio",
-			},
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        "aliases",
 				Description: "triggers for sound",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "link",
+				Description: "link to audio",
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionAttachment,

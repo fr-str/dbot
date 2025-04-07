@@ -8,9 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	"dbot/pkg/config"
 
@@ -30,12 +28,7 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 		return nil, err
 	}
 
-	dir, err := os.MkdirTemp("data", strconv.Itoa(int(time.Now().Unix())))
-	if err != nil {
-		return nil, err
-	}
-
-	log.Trace("ToDiscordMP4", log.String("dir", dir))
+	log.Trace("ToDiscordMP4", log.String("dir", tmpDir))
 	// video bitrate
 	bitrate := 10 * 1_000_000 * 8
 	// audio bitrate
@@ -56,24 +49,24 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 		"-preset", "veryslow",
 		"-b:v", fmt.Sprintf("%dK", bitrate),
 	}
-
-	cmd := exec.CommandContext(ctx, "ffmpeg")
-	cmd.Dir = tmpDir
-	// first pass
-	cmd.Args = append(cmd.Args, base...)
-	cmd.Args = append(cmd.Args, "-global_quality", "14", "-an", "-pass", "1", "-f", "mp4", "-y", "/dev/null")
-
-	log.Info("convertToDiscordMP4", log.String("cmd", cmd.String()))
-	err = runCmd(cmd)
-	if err != nil {
-		return nil, err
-	}
+	//
+	// cmd := exec.CommandContext(ctx, "ffmpeg")
+	//// cmd.Dir = tmpDir
+	// // first pass
+	// cmd.Args = append(cmd.Args, base...)
+	// cmd.Args = append(cmd.Args, "-global_quality", "14", "-an", "-pass", "1", "-f", "mp4", "-y", "/dev/null")
+	//
+	// log.Info("convertToDiscordMP4", log.String("cmd", cmd.String()))
+	// err = runCmd(cmd)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	// second pass
-	cmd = exec.CommandContext(ctx, "ffmpeg")
-	cmd.Dir = tmpDir
+	cmd := exec.CommandContext(ctx, "ffmpeg")
+	// cmd.Dir = tmpDir
 	cmd.Args = append(cmd.Args, base...)
-	cmd.Args = append(cmd.Args, "-pass", "2",
+	cmd.Args = append(cmd.Args, //"-pass", "2",
 		"-c:a", "libopus",
 		"-b:a", "48k",
 		"-r", "24",
