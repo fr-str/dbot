@@ -139,6 +139,10 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 		return err
 	}
 
+	msg := fmt.Sprintf("Saved sound '%s', '%s'", strings.Split(opts.Aliases, ",")[0], opts.Link)
+	d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &msg,
+	})
 	return nil
 }
 

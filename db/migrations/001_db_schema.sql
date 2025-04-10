@@ -20,7 +20,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS guild_type on channels (gid,type);
 
 
 CREATE TABLE IF NOT EXISTS sounds (
-    url TEXT NOT NULL,
+    url TEXT NOT NULL PRIMARY KEY,
     gid TEXT NOT NULL,
     aliases Aliases NOT NULL,
     created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

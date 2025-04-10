@@ -37,6 +37,10 @@ func ConnectAudioCache(ctx context.Context, filename string, schema string) (*ca
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		<-ctx.Done()
+		w.Close()
+	}()
 
 	// create tables
 	goose.SetBaseFS(migrations.CacheMigrations)
@@ -98,6 +102,10 @@ func ConnectBackup(ctx context.Context, filename, password string) (*backup.Quer
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		<-ctx.Done()
+		w.Close()
+	}()
 
 	// create tables
 	goose.SetBaseFS(migrations.BackupMigrations)

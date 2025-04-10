@@ -29,19 +29,28 @@ func (d *DBot) RegisterEventListiners() {
 	d.AddHandler(d.onUserVoiceStateChange)
 }
 
+func createContextTmpDir(ctx context.Context) context.Context {
+	dir, err := os.MkdirTemp(config.TMP_PATH, strconv.Itoa(int(time.Now().UnixNano())))
+	if err != nil {
+		log.Error("dupa", log.Err(err))
+	}
+
+	ctx = context.WithValue(ctx, config.DirKey, dir)
+	go func() {
+		<-ctx.Done()
+		os.RemoveAll(dir)
+	}()
+	return ctx
+}
+
 func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	return func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := cmdHandlers[i.ApplicationCommandData().Name]; ok {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			dir, err := os.MkdirTemp(config.TMP_PATH, strconv.Itoa(int(time.Now().UnixNano())))
-			if err != nil {
-				log.Error("dupa", log.Err(err))
-			}
-			defer os.RemoveAll(dir)
+			ctx = createContextTmpDir(ctx)
 
-			ctx = context.WithValue(ctx, config.DirKey, dir)
-			err = h(ctx, i)
+			err := h(ctx, i)
 			if err != nil {
 				log.Error(err.Error())
 

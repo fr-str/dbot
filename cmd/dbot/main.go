@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"dbot/pkg/api"
 	dbot "dbot/pkg/bot"
@@ -41,4 +42,5 @@ func bot(ctx context.Context, db *store.Queries) {
 
 	<-ctx.Done()
 	dg.Close()
+	time.Sleep(time.Second)
 }

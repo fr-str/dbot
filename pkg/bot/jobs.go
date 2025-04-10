@@ -10,6 +10,8 @@ import (
 	"dbot/pkg/config"
 	"dbot/pkg/dbg"
 	"dbot/pkg/store"
+
+	"github.com/fr-str/log"
 )
 
 const (
@@ -26,7 +28,12 @@ type DownloadAsyncMeta struct {
 }
 
 func (d *DBot) downloadAsync(meta string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx = createContextTmpDir(ctx)
+
 	var dwMeta DownloadAsyncMeta
+	log.Trace("[dupa]", log.Any("meta", meta))
 	err := json.Unmarshal([]byte(meta), &dwMeta)
 	if err != nil {
 		return fmt.Errorf("downloadAsync: %w", err)
@@ -36,12 +43,14 @@ func (d *DBot) downloadAsync(meta string) error {
 	dbg.Assert(len(dwMeta.URL) > 0)
 	dbg.Assert(len(dwMeta.Name) > 0)
 
-	f, err := d.downloadAsMP4(d.Ctx, dwMeta.URL)
+	log.Trace("downloadAsync", log.Any("dwMeta.URL", dwMeta.URL))
+	f, err := d.downloadAsMP4(ctx, dwMeta.URL)
 	if err != nil {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
 	defer f.File.Close()
 
+	log.Trace("backupFile")
 	bf, err := d.backupFile(BackupFileParams{
 		Name: dwMeta.Name,
 		GID:  dwMeta.GID,
@@ -52,7 +61,7 @@ func (d *DBot) downloadAsync(meta string) error {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
 
-	_, err = d.Store.AddPlaylistEntry(d.Ctx, store.AddPlaylistEntryParams{
+	_, err = d.Store.AddPlaylistEntry(ctx, store.AddPlaylistEntryParams{
 		PlaylistID: dwMeta.PlaylistID,
 		YoutubeUrl: dwMeta.URL,
 		Filepath:   bf.Name,

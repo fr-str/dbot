@@ -201,17 +201,8 @@ func (d *DBot) SaveSound(ctx context.Context, params SaveSoundParams) error {
 
 	name := fmt.Sprintf("%s.mp4", aliases[0])
 	log.Trace("SaveSound", log.Any("link", name))
-	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
-		Gid:       params.GID,
-		Url:       name,
-		Aliases:   aliases,
-		OriginUrl: params.Link,
-	})
-	if err != nil {
-		return err
-	}
-	_, err = d.backupFile(BackupFileParams{
-		Name:        fmt.Sprintf("%s.mp4", aliases[0]),
+	file, err := d.backupFile(BackupFileParams{
+		Name:        name,
 		GID:         params.GID,
 		Dirs:        "sounds",
 		PrependTime: false,
@@ -219,6 +210,16 @@ func (d *DBot) SaveSound(ctx context.Context, params SaveSoundParams) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to backup file '%s': %w", params.Link, err)
+	}
+
+	sound, err := d.Store.AddSound(d.Ctx, store.AddSoundParams{
+		Gid:       params.GID,
+		Url:       file.Name,
+		Aliases:   aliases,
+		OriginUrl: params.Link,
+	})
+	if err != nil {
+		return err
 	}
 	log.Trace("SaveSound", log.JSON(sound))
 
