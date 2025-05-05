@@ -184,12 +184,12 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	}
 
 	stat, err := f.Stat()
-	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size", stat.Size()))
+	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size_MB", stat.Size()>>20))
 	if err != nil {
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
 
-	if stat.Size() > 10*1_000_000*8 {
+	if stat.Size() > 10*1_000_000 {
 		log.Info("failed converting to mp4, trying to convert to discord mp4")
 		msg := "file is too big, reducing bitrate and resolution and running duble pass"
 		d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{

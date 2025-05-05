@@ -79,8 +79,10 @@ func (d *DBot) backupJob(meta string) error {
 	if err != nil {
 		return fmt.Errorf("backupFile: %w", err)
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	dir := filepath.Join(config.TMP_PATH, "backup")
 	os.MkdirAll(dir, 0o755)
 	ctx = context.WithValue(ctx, config.DirKey, dir)

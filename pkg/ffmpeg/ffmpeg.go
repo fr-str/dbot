@@ -15,14 +15,16 @@ import (
 	"github.com/fr-str/log"
 )
 
+var ErrFfmpegError = errors.New("ffmpeg error")
+
 // file is closed when context is canceled
 func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	tmpDir, ok := ctx.Value(config.DirKey).(string)
 	if !ok || len(tmpDir) == 0 {
 		return nil, errors.New("nie dałeś temp dira debilu")
 	}
-	name := strings.ReplaceAll(file, filepath.Ext(file), "")
-	mp4Path := filepath.Join(tmpDir, fmt.Sprintf("discord.%s.mp4", filepath.Base(name)))
+	// name := strings.ReplaceAll(file, filepath.Ext(file), "")
+	mp4Path := filepath.Join(tmpDir, "discord.dupa.mp4")
 	info, err := Probe(file)
 	if err != nil {
 		return nil, err
@@ -100,12 +102,12 @@ func runCmd(cmd *exec.Cmd) error {
 	cmd.Stderr = buf
 	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("cmd.Start failed: %w", err)
+		return fmt.Errorf("%w: cmd.Start failed: %w", ErrFfmpegError, err)
 	}
 
 	err = cmd.Wait()
 	if err != nil {
-		return fmt.Errorf("cmd.Wait failed: %w,\n%s", err, buf.String())
+		return fmt.Errorf("%w: cmd.Wait failed: %w,\n%s", ErrFfmpegError, err, buf.String())
 	}
 
 	return nil

@@ -132,8 +132,11 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 			}
 
 			msg := Err.Err.Error()
-			if errors.Is(Err.Err, ytdlp.ErrFailedToDownload) {
+			switch {
+			case errors.Is(Err.Err, ytdlp.ErrFailedToDownload):
 				msg = "could not download video"
+			case errors.Is(Err.Err, ffmpeg.ErrFfmpegError):
+				msg = "failed converting to mp4"
 			}
 
 			_, err = d.ChannelMessageSend(chID, msg)
@@ -319,19 +322,22 @@ func (d *DBot) play(gID, uID string, url string) error {
 		if err != nil {
 			return fmt.Errorf("failed searching: %w", err)
 		}
+
 	case strings.Contains(url, "/playlist"):
 		err := d.playFromYTPlaylist(gID, url)
 		if err != nil {
 			return fmt.Errorf("failed load playlist: %w", err)
 		}
+
 	default:
-		// art, err := d.Backup.GetArtefact(d.Ctx, url)
-		// if err != nil {
-		// 	go saveInPlayHistory(d, url, gID)
-		// } else {
-		// 	url = art.Path
-		// }
-		// log.Trace("playHistory: artefact already exists")
+		art, err := d.Backup.GetArtefact(d.Ctx, url)
+		if err != nil {
+			go saveInPlayHistory(d, url, gID)
+		} else {
+			log.Trace("playHistory: artefact already exists")
+			url = art.Path
+		}
+
 		d.MusicPlayer.Add(url)
 	}
 
@@ -339,6 +345,7 @@ func (d *DBot) play(gID, uID string, url string) error {
 }
 
 func saveInPlayHistory(d *DBot, url string, gID string) {
+	log.Trace("saveInPlayHistory", log.String("url", url), log.String("gid", gID))
 	meta := BackupFileParams{
 		OriginUrl:   url,
 		GID:         gID,
@@ -346,11 +353,13 @@ func saveInPlayHistory(d *DBot, url string, gID string) {
 		PrependTime: false,
 		File:        nil,
 	}
+
 	jsonMeta, err := json.Marshal(meta)
 	if err != nil {
 		log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
 		return
 	}
+
 	_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
 		Meta:    string(jsonMeta),
 		JobType: BackupJob,
