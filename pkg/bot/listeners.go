@@ -207,10 +207,13 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Trace("isKnownSound", log.Any("sound.Url", sound.Url))
-
-	log.Trace("isKnownSound", log.Any("url", sound.Url))
-	d.MusicPlayer.PlaySound(sound.Url)
+	for _, s := range sound {
+		if strings.Contains(s.Url, "riotgames") {
+			continue
+		}
+		log.Trace("isKnownSound", log.Any("sound.Url", s.Url), log.Any("name", s.Aliases))
+		d.MusicPlayer.PlaySound(s.Url)
+	}
 }
 
 func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceStateUpdate) {

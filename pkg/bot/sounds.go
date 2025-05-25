@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"dbot/pkg/store"
@@ -16,18 +17,33 @@ import (
 
 var ErrSoundNotFound = errors.New("sound not found")
 
-func findSound(db *store.Queries, name string, gid string) (store.Sound, error) {
+func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error) {
+	var ss []store.Sound
 	sounds, err := db.SelectSounds(context.Background(), gid)
 	if err != nil {
-		return store.Sound{}, fmt.Errorf("db select failed: %w", err)
+		return ss, fmt.Errorf("db select failed: %w", err)
 	}
 	if len(sounds) == 0 {
-		return store.Sound{}, fmt.Errorf("no sounds in soundboard")
+		return ss, fmt.Errorf("no sounds in soundboard")
 	}
 
 	name = strings.ToLower(strings.ReplaceAll(name, " ", ""))
-	if name == "sound" || name == "event" {
-		return randSound(sounds), nil
+	if strings.HasPrefix(name, "sound") || strings.HasPrefix(name, "event") {
+		if len(name) < 5 {
+			return append(ss, randSound(sounds)), nil
+		}
+
+		num := name[5:]
+		numInt, err := strconv.Atoi(num)
+		if err != nil {
+			return append(ss, randSound(sounds)), nil
+		}
+
+		for range numInt {
+			ss = append(ss, randSound(sounds))
+		}
+		return ss, nil
+
 	}
 
 	var fullSound store.Sound
@@ -53,15 +69,15 @@ func findSound(db *store.Queries, name string, gid string) (store.Sound, error) 
 
 	// if sound found return it
 	if fullRatio >= 80 {
-		return fullSound, nil
+		return append(ss, fullSound), nil
 	}
 
 	// if sound not found return partial match
 	if partialRatio >= 80 {
-		return partialSound, nil
+		return append(ss, partialSound), nil
 	}
 
-	return store.Sound{}, ErrSoundNotFound
+	return ss, ErrSoundNotFound
 }
 
 func randSound(sounds []store.Sound) store.Sound {
