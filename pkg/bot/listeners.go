@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"dbot/pkg/config"
-	. "dbot/pkg/dbg"
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/ytdlp"
 
@@ -182,9 +181,6 @@ func soundAll(d *DBot, m *discordgo.MessageCreate) {
 	}
 
 	for _, s := range sounds {
-		Assert(len(s.Gid) > 0)
-		Assert(len(s.Url) > 0)
-		Assert(len(s.Aliases) > 0)
 		d.MusicPlayer.PlaySound(s.Url)
 	}
 }

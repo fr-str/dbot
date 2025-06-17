@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	. "dbot/pkg/dbg"
 	"dbot/pkg/ytdlp"
@@ -44,7 +43,6 @@ func (t *Player) PlayPause() {
 
 type Player struct {
 	ytdlp.YTDLP
-	cache *cache.Queries
 
 	list    list
 	VC      *discordgo.VoiceConnection
@@ -64,12 +62,11 @@ type Err struct {
 	Err error
 }
 
-func NewPlayer(cache *cache.Queries) *Player {
+func NewPlayer() *Player {
 	p := &Player{
 		list:    newList(),
 		queue:   make(chan *Audio, 1000),
 		ErrChan: make(chan Err),
-		cache:   cache,
 	}
 	go p.musicLoop()
 	go p.soundLoop()

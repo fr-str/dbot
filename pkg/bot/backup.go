@@ -14,7 +14,6 @@ import (
 
 	"dbot/pkg/backup"
 	"dbot/pkg/config"
-	. "dbot/pkg/dbg"
 
 	"github.com/fr-str/log"
 
@@ -112,10 +111,6 @@ func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
 }
 
 func (d *DBot) backupArtefact(ctx context.Context, params BackupFileParams) (BackupFile, error) {
-	Assert(len(params.GID) > 0)
-	Assert(len(params.Dirs) > 0)
-	Assert(len(params.Name) > 0)
-
 	info, err := d.backupFile(params)
 	if err != nil {
 		return info, fmt.Errorf("backup artefact '%s': %w", params.Name, err)

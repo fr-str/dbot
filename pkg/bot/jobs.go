@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"dbot/pkg/config"
-	"dbot/pkg/dbg"
 	"dbot/pkg/store"
 
 	"github.com/fr-str/log"
@@ -38,10 +37,6 @@ func (d *DBot) downloadAsync(meta string) error {
 	if err != nil {
 		return fmt.Errorf("downloadAsync: %w", err)
 	}
-
-	dbg.Assert(len(dwMeta.GID) > 0)
-	dbg.Assert(len(dwMeta.URL) > 0)
-	dbg.Assert(len(dwMeta.Name) > 0)
 
 	log.Trace("downloadAsync", log.Any("dwMeta.URL", dwMeta.URL))
 	f, err := d.downloadAsMP4(ctx, dwMeta.URL)
@@ -95,6 +90,7 @@ func (d *DBot) backupJob(meta string) error {
 	bf.File = f.File
 	bf.Name = f.Name
 
+	log.Debug("backupJob", log.JSON(bf))
 	_, err = d.backupArtefact(ctx, bf)
 	if err != nil {
 		return fmt.Errorf("backupFile: %w", err)

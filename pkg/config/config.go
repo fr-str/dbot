@@ -8,9 +8,11 @@ import (
 	"github.com/fr-str/env"
 )
 
+type Dirkey string
+
 const (
-	Prod   = "prod"
-	DirKey = "tmp_dir"
+	Prod          = "prod"
+	DirKey Dirkey = "tmp_dir"
 )
 
 var (

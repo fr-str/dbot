@@ -11,10 +11,8 @@ import (
 	"strings"
 
 	"dbot/pkg/backup"
-	"dbot/pkg/cache"
 	"dbot/pkg/config"
 	"dbot/pkg/db"
-	. "dbot/pkg/dbg"
 	"dbot/pkg/ffmpeg"
 	jobrunner "dbot/pkg/job_runner"
 	"dbot/pkg/player"
@@ -26,9 +24,6 @@ import (
 )
 
 type DBot struct {
-	// only used to create new Player instances
-	_c *cache.Queries
-
 	Ctx    context.Context
 	Store  *store.Queries
 	Backup *backup.Queries
@@ -68,10 +63,6 @@ func startJobRunner(ctx context.Context, db *store.Queries) jobrunner.Runner {
 }
 
 func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries) *DBot {
-	audioCache, err := db.ConnectAudioCache(ctx, "audio-cache.db", "")
-	if err != nil {
-		panic(err)
-	}
 	backupDB, err := db.ConnectBackup(ctx, "backup.db", "")
 	if err != nil {
 		panic(err)
@@ -79,10 +70,9 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 
 	// sess.LogLevel = 3
 	d := DBot{
-		_c:          audioCache,
 		Ctx:         ctx,
 		Session:     sess,
-		MusicPlayer: player.NewPlayer(audioCache),
+		MusicPlayer: player.NewPlayer(),
 		Store:       dbstore,
 		Backup:      backupDB,
 	}
@@ -188,14 +178,10 @@ type SaveSoundParams struct {
 }
 
 func (d *DBot) SaveSound(ctx context.Context, params SaveSoundParams) error {
-	Assert(len(params.GID) != 0)
-
 	params.Aliases = normalize(params.Aliases)
-	Assert(len(params.Link) != 0)
 	log.Trace("SaveSound", log.Any("params.Link", params.Link))
 
 	aliases := strings.Split(params.Aliases, ",")
-	Assert(len(aliases) > 0)
 
 	f, err := d.downloadAsMP4(ctx, params.Link)
 	if err != nil {
@@ -247,8 +233,8 @@ func (d *DBot) downloadAsMP4(ctx context.Context, url string) (MP4File, error) {
 	}
 
 	return MP4File{
-		Filepath: vi.Filepath,
-		Name:     vi.Filepath,
+		Filepath: f.Name(),
+		Name:     f.Name(),
 		File:     f,
 	}, nil
 }
@@ -276,10 +262,6 @@ func (d *DBot) getUserVC(s *discordgo.Session, gID string, uID string) (*discord
 }
 
 func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) {
-	Assert(len(params.ChName) > 0)
-	Assert(len(params.Gid) > 0)
-	Assert(len(params.Chid) > 0)
-	Assert(len(params.Type) > 0)
 	ch, err := d.Store.MapChannel(d.Ctx, params)
 	if err != nil {
 		return store.Channel{}, dbotErr("failed to save: %w", err)
@@ -300,7 +282,7 @@ func (d *DBot) wypierdalajZVC(gID string) error {
 	}
 	d.MusicPlayer.Close()
 
-	d.MusicPlayer = player.NewPlayer(d._c)
+	d.MusicPlayer = player.NewPlayer()
 	return nil
 }
 
@@ -391,12 +373,12 @@ func (d *DBot) playFromYTPlaylist(gID, url string) error {
 			continue
 		}
 		u := info.Entries[i].URL
-		art, err := d.Backup.GetArtefact(d.Ctx, url)
-		if err != nil {
-			go saveInPlayHistory(d, url, gID)
-		} else {
-			u = art.Path
-		}
+		// art, err := d.Backup.GetArtefact(d.Ctx, url)
+		// if err != nil {
+		// 	go saveInPlayHistory(d, url, gID)
+		// } else {
+		// 	u = art.Path
+		// }
 		d.MusicPlayer.Add(u)
 	}
 
@@ -442,7 +424,10 @@ func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
 		}
 
 		b, err := json.Marshal(meta)
-		Assert(err == nil, err)
+		if err != nil {
+			log.Error("lol dupa", log.Err(err), log.String("meta", fmt.Sprintf("%+v", meta)))
+			continue
+		}
 
 		_, err = d.Store.Enqueue(d.Ctx, store.EnqueueParams{
 			Meta:      string(b),
