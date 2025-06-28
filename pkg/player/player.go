@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 
 	"dbot/pkg/config"
-	. "dbot/pkg/dbg"
 	"dbot/pkg/ytdlp"
 
 	"github.com/bwmarrin/discordgo"
@@ -148,7 +147,6 @@ func (p *Player) soundLoop() {
 			continue
 		}
 
-		log.Trace("soundLoop", log.Any("shouldUnpause", shouldUnpause))
 		if shouldUnpause {
 			p.PlayPause()
 		}
@@ -156,7 +154,6 @@ func (p *Player) soundLoop() {
 }
 
 func (p *Player) fetch(audio *Audio) error {
-	Assert(p.VC != nil, "nil VC")
 	if strings.Contains(audio.Link, p.VC.GuildID) {
 		audio.Filepath = filepath.Join(config.BACKUP_DIR, audio.Link)
 		return nil
@@ -169,25 +166,26 @@ func (p *Player) fetch(audio *Audio) error {
 
 	audio.Filepath = meta.Filepath
 	audio.Title = meta.Title
+	audio.Link = meta.OriginalURL
 	return nil
 }
 
 func (p *Player) play(audio *Audio) error {
 	p.Playing.Store(true)
 	defer p.Playing.Store(false)
-	defer os.Remove(audio.Filepath)
+	// defer os.Remove(audio.Filepath)
 	log.Debug("play", log.JSON(audio))
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", audio.Filepath,
-		"-ar", "48000", // Sample rate for Opus
-		"-ac", "2", // Stereo
-		"-c:a", "libopus", // Opus codec
-		"-frame_duration", "20", // 20ms frames
-		"-vbr", "off", // Disable variable bitrate for consistent frame sizes
-		"-b:a", "64k", // Bitrate
+		"-ar", "48000",
+		"-ac", "2",
+		"-c:a", "libopus",
+		"-frame_duration", "20",
+		"-vbr", "off",
+		"-b:a", "64k",
 		"-application", "audio",
-		"-packet_loss", "0", // Disable packet loss prevention
-		"-f", "opus", // Force opus format
+		"-packet_loss", "0",
+		"-f", "opus",
 		"pipe:1",
 	)
 	stdout, err := cmd.StdoutPipe()
@@ -234,15 +232,15 @@ func (p *Player) playSound(audio *Audio) error {
 	log.Debug("playSound", log.JSON(audio))
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", audio.Filepath,
-		"-ar", "48000", // Sample rate for Opus
-		"-ac", "2", // Stereo
-		"-c:a", "libopus", // Opus codec
-		"-frame_duration", "20", // 20ms frames
-		"-vbr", "off", // Disable variable bitrate for consistent frame sizes
-		"-b:a", "64k", // Bitrate
+		"-ar", "48000",
+		"-ac", "2",
+		"-c:a", "libopus",
+		"-frame_duration", "20",
+		"-vbr", "off",
+		"-b:a", "64k",
 		"-application", "audio",
-		"-packet_loss", "0", // Disable packet loss prevention
-		"-f", "opus", // Force opus format
+		"-packet_loss", "0",
+		"-f", "opus",
 		"pipe:1",
 	)
 	stdout, err := cmd.StdoutPipe()

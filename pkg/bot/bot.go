@@ -79,7 +79,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 
 	runner := startJobRunner(ctx, dbstore)
 	runner.RegisterJob(DownloadJob, d.downloadAsync)
-	runner.RegisterJob(BackupJob, d.backupJob)
+	runner.RegisterJob(BackupJob, d.backupVideoJob)
 
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()

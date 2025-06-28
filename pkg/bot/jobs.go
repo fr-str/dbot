@@ -68,7 +68,7 @@ func (d *DBot) downloadAsync(meta string) error {
 	return nil
 }
 
-func (d *DBot) backupJob(meta string) error {
+func (d *DBot) backupVideoJob(meta string) error {
 	var bf BackupFileParams
 	err := json.Unmarshal([]byte(meta), &bf)
 	if err != nil {
@@ -89,6 +89,7 @@ func (d *DBot) backupJob(meta string) error {
 	defer f.File.Close()
 	bf.File = f.File
 	bf.Name = f.Name
+	bf.ContentType = "video/mp4"
 
 	log.Debug("backupJob", log.JSON(bf))
 	_, err = d.backupArtefact(ctx, bf)

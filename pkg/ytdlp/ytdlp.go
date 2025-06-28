@@ -26,7 +26,10 @@ func must[T any](v T, err error) T {
 
 var ErrFailedToDownload = errors.New("yt-dlp: failed to download")
 
-const ytdlp = "yt-dlp"
+const (
+	ytdlp          = "yt-dlp"
+	printAfterMove = "after_move:%(.{title,filepath,ext,original_url})j"
+)
 
 var playlistInfoCMD, videoDownloadCMD, audioDownloadCMD []string
 
@@ -36,7 +39,7 @@ func init() {
 		audioDownloadCMD = []string{
 			"--no-simulate",
 			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
-			"--print", "after_move:%(.{title,filepath,ext})j",
+			"--print", printAfterMove,
 			"-x",
 			"--audio-format",
 			"opus",
@@ -44,7 +47,7 @@ func init() {
 		videoDownloadCMD = []string{
 			"--no-simulate",
 			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
-			"--print", "after_move:%(.{title,filepath,ext})j",
+			"--print", printAfterMove,
 			"-f",
 			"bestvideo+bestaudio/best",
 		}
@@ -60,9 +63,10 @@ func init() {
 }
 
 type VideoMeta struct {
-	Title    string
-	Ext      string
-	Filepath string
+	Title       string `json:"title"`
+	Ext         string `json:"ext"`
+	Filepath    string `json:"filepath"`
+	OriginalURL string `json:"original_url"`
 }
 
 func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
