@@ -87,6 +87,7 @@ func (d *DBot) backupVideoJob(meta string) error {
 		return fmt.Errorf("backupFile: %w", err)
 	}
 	defer f.File.Close()
+	defer os.Remove(f.Name)
 	bf.File = f.File
 	bf.Name = f.Name
 	bf.ContentType = "video/mp4"
