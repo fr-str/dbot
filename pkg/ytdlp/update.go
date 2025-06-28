@@ -37,6 +37,7 @@ func StartUpdater(ctx context.Context) {
 			}
 			if string(version) != string(versionNew) {
 				log.Info("updated yt-dlp", log.String("old", string(version)), log.String("new", string(versionNew)))
+				version = versionNew
 			}
 
 			select {
