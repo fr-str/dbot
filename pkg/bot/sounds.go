@@ -39,7 +39,7 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 			return append(ss, randSound(sounds)), nil
 		}
 
-		for range numInt {
+		for range min(numInt, 2137) {
 			ss = append(ss, randSound(sounds))
 		}
 		return ss, nil
