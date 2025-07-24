@@ -96,6 +96,7 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = createContextTmpDir(ctx)
 	defer cancel()
 	badCodecs := []string{
 		"hevc",
