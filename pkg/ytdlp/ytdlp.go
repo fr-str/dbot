@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"io"
 	"os"
 	"os/exec"
@@ -98,6 +101,18 @@ func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) 
 	tmpDir, ok := ctx.Value(config.DirKey).(string)
 	if !ok || len(tmpDir) == 0 {
 		return VideoMeta{}, errors.New("nie dałeś temp dira debilu")
+	}
+	pattern := `https?://(?:www\.)?jbzd\.com\.pl`
+	re := regexp.MustCompile(pattern)
+	if re.MatchString(link) {
+	  cmdStr := fmt.Sprintf(`curl -s '%s' | grep -Po '<videoplyr[^>]+video_url='\''([^'\'']+)' | sed -nr 's/^.*'\''([^'\'']+).*$/\1/p'`, link)
+	  cmd := exec.Command("bash", "-c", cmdStr)
+	  output, err := cmd.Output()
+	  if err != nil {
+	    var meta VideoMeta
+	    return meta, errors.New("nie używaj pipline bashowego w Go debilu")
+	  }
+	  link = strings.TrimSpace(string(output))
 	}
 	cmd := exec.Command(ytdlp, append(videoDownloadCMD, link)...)
 	cmd.Dir = string(tmpDir)
