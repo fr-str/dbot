@@ -179,6 +179,7 @@ func (p *Player) play(audio *Audio) error {
 		"-i", audio.Filepath,
 		"-ar", "48000",
 		"-ac", "2",
+		"-af", dynaudnorm,
 		"-c:a", "libopus",
 		"-frame_duration", "20",
 		"-vbr", "off",
@@ -226,6 +227,10 @@ func (p *Player) play(audio *Audio) error {
 	return cmd.Wait()
 }
 
+// const dynaudnorm = `dynaudnorm=f=150:g=15:p=0.9`
+
+const dynaudnorm = `dynaudnorm=f=100:g=5:p=0.95:m=50.0`
+
 func (p *Player) playSound(audio *Audio) error {
 	p.Playing.Store(true)
 	defer p.Playing.Store(false)
@@ -236,6 +241,7 @@ func (p *Player) playSound(audio *Audio) error {
 		"-ac", "2",
 		"-c:a", "libopus",
 		"-frame_duration", "20",
+		"-af", dynaudnorm,
 		"-vbr", "off",
 		"-b:a", "64k",
 		"-application", "audio",
