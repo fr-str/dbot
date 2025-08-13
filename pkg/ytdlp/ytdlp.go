@@ -175,19 +175,19 @@ func parseSpecialLinks(rawUrl string) (string, error) {
 	if err != nil {
 		return rawUrl, errors.New("Error parsing url")
 	}
-	var contentType string
-	if strings.HasSuffix(u.Host, "jbzd.com.pl") {
-		resp, err := http.Head(rawUrl)
-		if err != nil {
-			return rawUrl, errors.New("Error making web (HEAD) request url")
-		}
-		defer resp.Body.Close()
-		contentType = resp.Header["Content-Type"][0]
+	if !strings.HasSuffix(u.Host, "jbzd.com.pl") {
+		return rawUrl, nil
 	}
+	resp, err := http.Head(rawUrl)
+	if err != nil {
+		return rawUrl, errors.New("Error making web (HEAD) request url")
+	}
+	defer resp.Body.Close()
+	contentType := resp.Header["Content-Type"][0]
 	if !strings.Contains(contentType, "text/html") {
 		return rawUrl, nil
 	}
-	resp, err := http.Get(rawUrl)
+	resp, err = http.Get(rawUrl)
 	if err != nil {
 		return rawUrl, errors.New("Error making web (GET) request url")
 	}
