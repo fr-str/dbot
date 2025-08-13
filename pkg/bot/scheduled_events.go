@@ -48,7 +48,7 @@ func (d *DBot) papaj() {
 	}
 
 	if d.MusicPlayer.VC != nil {
-		d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/papaj.mp4")
+		d.MusicPlayer.PlaySound("/492318912881491981/sounds/papaj.mp4")
 	}
 }
 
@@ -61,7 +61,7 @@ func (d *DBot) środowaNoc() {
 		}
 	}
 	if d.MusicPlayer.VC != nil {
-		d.MusicPlayer.PlaySound("https://static.dodupy.dev/bot/soundboard/srodowanoc.mp4")
+		d.MusicPlayer.PlaySound("/492318912881491981/sounds/srodowanoc.mp4")
 	}
 }
 
