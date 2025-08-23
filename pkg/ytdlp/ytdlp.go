@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"dbot/pkg/config"
 
 	"github.com/fr-str/log"
 	"golang.org/x/net/context"
+	"golang.org/x/net/html"
 )
 
 type YTDLP struct{}
@@ -99,6 +103,12 @@ func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) 
 	if !ok || len(tmpDir) == 0 {
 		return VideoMeta{}, errors.New("nie dałeś temp dira debilu")
 	}
+
+	link, err := parseSpecialLinks(link)
+	if err != nil {
+		return VideoMeta{}, errors.Join(errors.New("Special Links Parser"), err)
+	}
+
 	cmd := exec.Command(ytdlp, append(videoDownloadCMD, link)...)
 	cmd.Dir = string(tmpDir)
 
@@ -109,7 +119,7 @@ func (YTDLP) DownloadVideo(ctx context.Context, link string) (VideoMeta, error) 
 
 	var meta VideoMeta
 	log.Trace("DownloadVideo", log.String("cmd", cmd.String()), log.String("link", link))
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		b, _ := io.ReadAll(stderr)
 		return meta, errors.Join(ErrFailedToDownload, errors.New(string(b)))
@@ -158,4 +168,45 @@ func (YTDLP) PlaylistInfo(link string) (PlaylistMeta, error) {
 	}
 
 	return meta, nil
+}
+
+func parseSpecialLinks(rawUrl string) (string, error) {
+	u, err := url.Parse(rawUrl)
+	if err != nil {
+		return rawUrl, errors.New("Error parsing url")
+	}
+	if !strings.HasSuffix(u.Host, "jbzd.com.pl") {
+		return rawUrl, nil
+	}
+	resp, err := http.Head(rawUrl)
+	if err != nil {
+		return rawUrl, errors.New("Error making web (HEAD) request url")
+	}
+	defer resp.Body.Close()
+	contentType := resp.Header["Content-Type"][0]
+	if !strings.Contains(contentType, "text/html") {
+		return rawUrl, nil
+	}
+	resp, err = http.Get(rawUrl)
+	if err != nil {
+		return rawUrl, errors.New("Error making web (GET) request url")
+	}
+	defer resp.Body.Close()
+
+	doc, err := html.Parse(resp.Body)
+	if err != nil {
+		return rawUrl, errors.New("Error parsing body")
+	}
+	for n := range doc.Descendants() {
+
+		if n.Type == html.ElementNode && n.Data == "videoplyr" {
+			for _, a := range n.Attr {
+				if a.Key == "video_url" {
+					return a.Val, nil
+				}
+			}
+		}
+	}
+
+	return rawUrl, errors.New("Unknown error")
 }
