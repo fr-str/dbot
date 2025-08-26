@@ -77,6 +77,11 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 	cmd := exec.Command(ytdlp, append(audioDownloadCMD, link)...)
 	cmd.Dir = config.TMP_PATH
 
+	link, err := parseSpecialLinks(link)
+	if err != nil {
+		return VideoMeta{}, errors.Join(errors.New("Special Links Parser"), err)
+	}
+
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	cmd.Stdout = stdout
@@ -84,7 +89,7 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 
 	var meta VideoMeta
 	log.Trace("DownloadAudio", log.String("cmd", cmd.String()), log.String("link", link))
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		b, _ := io.ReadAll(stderr)
 		return meta, errors.Join(ErrFailedToDownload, errors.New(string(b)))
