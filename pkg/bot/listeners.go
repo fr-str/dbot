@@ -3,6 +3,7 @@ package dbot
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"slices"
@@ -51,7 +52,7 @@ func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Ses
 
 			err := h(ctx, i)
 			if err != nil {
-				log.Error(err.Error())
+				log.Error("uuu duuuuuuuuuuuuuuuuuupa", log.Err(err), log.String("cmd", i.ApplicationCommandData().Name), log.String("err_type", fmt.Sprintf("%T", err)))
 
 				msg := err.Error()
 				if errors.Is(err, ytdlp.ErrFailedToDownload) {

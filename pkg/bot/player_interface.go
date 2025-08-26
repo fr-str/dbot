@@ -36,13 +36,13 @@ func (d *DBot) interfaceLoop() {
 			}
 			err = d.ChannelMessageDelete(c.Chid, lastID)
 			if err != nil {
-				log.Error(err.Error())
+				log.Error("failed deleting last message", log.Err(err), log.String("err_type", fmt.Sprintf("%T", err)))
 			}
 
 			lastContent = content
 			msg, err := d.ChannelMessageSend(c.Chid, content)
 			if err != nil {
-				log.Error(err.Error())
+				log.Error("failed sending message", log.Err(err), log.String("err_type", fmt.Sprintf("%T", err)))
 			}
 			lastID = msg.ID
 		}

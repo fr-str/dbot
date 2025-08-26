@@ -229,7 +229,7 @@ func (p *Player) play(audio *Audio) error {
 
 // const dynaudnorm = `dynaudnorm=f=150:g=15:p=0.9`
 
-const dynaudnorm = `dynaudnorm=f=100:g=5:p=0.95:m=50.0`
+const dynaudnorm = `dynaudnorm=f=150:g=15:p=0.95:m=50.0`
 
 func (p *Player) playSound(audio *Audio) error {
 	p.Playing.Store(true)
