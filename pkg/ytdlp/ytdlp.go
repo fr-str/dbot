@@ -74,6 +74,11 @@ type VideoMeta struct {
 }
 
 func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
+	link, err := parseSpecialLinks(link)
+	if err != nil {
+		return VideoMeta{}, errors.Join(errors.New("Special Links Parser"), err)
+	}
+
 	cmd := exec.Command(ytdlp, append(audioDownloadCMD, link)...)
 	cmd.Dir = config.TMP_PATH
 
@@ -84,7 +89,7 @@ func (YTDLP) DownloadAudio(link string) (VideoMeta, error) {
 
 	var meta VideoMeta
 	log.Trace("DownloadAudio", log.String("cmd", cmd.String()), log.String("link", link))
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		b, _ := io.ReadAll(stderr)
 		return meta, errors.Join(ErrFailedToDownload, errors.New(string(b)))
