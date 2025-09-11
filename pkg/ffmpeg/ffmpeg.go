@@ -23,7 +23,7 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	if !ok || len(tmpDir) == 0 {
 		return nil, errors.New("nie dałeś temp dira debilu")
 	}
-	// name := strings.ReplaceAll(file, filepath.Ext(file), "")
+
 	mp4Path := filepath.Join(tmpDir, "discord.dupa.mp4")
 	info, err := Probe(file)
 	if err != nil {
@@ -42,8 +42,6 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	log.Trace("bitrate", log.Int("bitrate", bitrate))
 	base := []string{
 		"-hide_banner",
-		// "-init_hw_device", "qsv=hw",
-		// "-filter_hw_device", "hw",
 		"-i", file,
 		"-c:v", "libx264",
 		"-vf", "scale=-2:480",
@@ -57,7 +55,6 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	// first pass
 	cmd.Args = append(cmd.Args, base...)
 	cmd.Args = append(cmd.Args,
-		// "-global_quality", "14",
 		"-an", "-pass", "1", "-f", "mp4", "-y", "/dev/null")
 
 	log.Info("convertToDiscordMP4 first pass", log.String("cmd", cmd.String()))
@@ -68,7 +65,6 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 
 	// second pass
 	cmd = exec.CommandContext(ctx, "ffmpeg")
-	// cmd.Dir = tmpDir
 	cmd.Args = append(cmd.Args, base...)
 	cmd.Args = append(cmd.Args,
 		"-pass", "2",
