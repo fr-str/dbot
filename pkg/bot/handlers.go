@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -202,7 +203,15 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 			return fmt.Errorf("failed converting to mp4: %w", err)
 		}
 	}
-	_, err = d.ChannelMessageSendComplex(i.ChannelID, &discordgo.MessageSend{
+
+	hook, err := d.GetWebHook(ctx, i.ChannelID, DbotHook, "")
+	if err != nil {
+		return fmt.Errorf("getWebhook: %w", err)
+	}
+
+	_, err = d.WebhookExecute(hook.ID, hook.Token, false, &discordgo.WebhookParams{
+		Username:  cmp.Or(i.Member.User.GlobalName, i.Member.User.Username),
+		AvatarURL: i.Member.User.AvatarURL(""),
 		Files: []*discordgo.File{
 			{
 				Name:        "dupa.mp4",
@@ -210,6 +219,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 				Reader:      f,
 			},
 		},
+		Flags: discordgo.MessageFlagsSuppressEmbeds,
 	})
 
 	return err
