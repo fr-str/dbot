@@ -58,6 +58,9 @@ func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Ses
 				if errors.Is(err, ytdlp.ErrFailedToDownload) {
 					msg = "could not download video"
 				}
+				if len(msg) > 2000 {
+					msg = msg[:2000-1]
+				}
 				_, err := d.ChannelMessageSend(i.ChannelID, msg)
 				if err != nil {
 					log.Error("response failed", log.Err(err))

@@ -42,40 +42,42 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	log.Trace("bitrate", log.Int("bitrate", bitrate))
 	base := []string{
 		"-hide_banner",
-		"-init_hw_device", "qsv=hw",
-		"-filter_hw_device", "hw",
+		// "-init_hw_device", "qsv=hw",
+		// "-filter_hw_device", "hw",
 		"-i", file,
-		"-c:v", "h264_qsv",
+		"-c:v", "libx264",
 		"-vf", "scale=-2:480",
-		"-look_ahead", "1",
 		"-preset", "veryslow",
+		"-r", "24",
 		"-b:v", fmt.Sprintf("%dK", bitrate),
 	}
-	//
-	// cmd := exec.CommandContext(ctx, "ffmpeg")
-	//// cmd.Dir = tmpDir
-	// // first pass
-	// cmd.Args = append(cmd.Args, base...)
-	// cmd.Args = append(cmd.Args, "-global_quality", "14", "-an", "-pass", "1", "-f", "mp4", "-y", "/dev/null")
-	//
-	// log.Info("convertToDiscordMP4", log.String("cmd", cmd.String()))
-	// err = runCmd(cmd)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
-	// second pass
 	cmd := exec.CommandContext(ctx, "ffmpeg")
 	// cmd.Dir = tmpDir
+	// first pass
 	cmd.Args = append(cmd.Args, base...)
-	cmd.Args = append(cmd.Args, //"-pass", "2",
+	cmd.Args = append(cmd.Args,
+		// "-global_quality", "14",
+		"-an", "-pass", "1", "-f", "mp4", "-y", "/dev/null")
+
+	log.Info("convertToDiscordMP4 first pass", log.String("cmd", cmd.String()))
+	err = runCmd(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	// second pass
+	cmd = exec.CommandContext(ctx, "ffmpeg")
+	// cmd.Dir = tmpDir
+	cmd.Args = append(cmd.Args, base...)
+	cmd.Args = append(cmd.Args,
+		"-pass", "2",
 		"-c:a", "libopus",
 		"-b:a", "48k",
-		"-r", "24",
 		"-movflags", "+faststart+frag_keyframe+empty_moov",
 		mp4Path)
 
-	log.Info("convertToDiscordMP4", log.String("cmd", cmd.String()))
+	log.Info("convertToDiscordMP4 second pass", log.String("cmd", cmd.String()))
 	err = runCmd(cmd)
 	if err != nil {
 		return nil, err
@@ -86,7 +88,9 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 		return nil, err
 	}
 	stat, err := f.Stat()
-	log.Trace("convertToDiscordMP4", log.String("mp4Path", mp4Path), log.String("file", f.Name()), log.Int("size", stat.Size()))
+	log.Trace("convertToDiscordMP4",
+		log.String("mp4Path", mp4Path),
+		log.String("file", f.Name()), log.Int("size", stat.Size()))
 
 	go func() {
 		<-ctx.Done()
@@ -107,6 +111,7 @@ func runCmd(cmd *exec.Cmd) error {
 
 	err = cmd.Wait()
 	if err != nil {
+		fmt.Println(buf.String())
 		return fmt.Errorf("%w: cmd.Wait failed: %w,\n%s", ErrFfmpegError, err, buf.String())
 	}
 
@@ -131,7 +136,6 @@ func ConvertToMP4(ctx context.Context, file string) (*os.File, error) {
 		"-i", file,
 		"-c:v", "h264_qsv",
 		"-global_quality", "23",
-		"-look_ahead", "1",
 		"-preset", "veryslow",
 		"-movflags", "+faststart+frag_keyframe",
 		mp4Path,
