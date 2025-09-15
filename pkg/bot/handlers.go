@@ -186,7 +186,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	}
 
 	stat, err := f.Stat()
-	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size_MB", stat.Size()>>20))
+	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size_KB", stat.Size()>>10))
 	if err != nil {
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
