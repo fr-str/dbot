@@ -151,13 +151,19 @@ func (d *DBot) connectVoice(gID, uID string) error {
 		return fmt.Errorf("failed to find User VC: %w", err)
 	}
 
-	vc, err := d.ChannelVoiceJoin(gID, channel.ChannelID, false, false)
+	vc, err := d.ChannelVoiceJoin(context.TODO(), gID, channel.ChannelID, false, false)
 	if err != nil {
 		return fmt.Errorf("failed to join VC: %w", err)
 	}
 
 	// vc.LogLevel = 3
 	d.MusicPlayer.VC = vc
+	d.MusicPlayer.VCID = channel.ChannelID
+
+	go func() {
+		<-vc.Dead
+		d.wypierdalajZVC(gID)
+	}()
 
 	return nil
 }
@@ -272,12 +278,13 @@ func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) 
 
 func (d *DBot) wypierdalajZVC(gID string) error {
 	if d.MusicPlayer.VC != nil {
-		err := d.MusicPlayer.VC.Disconnect()
+		err := d.MusicPlayer.VC.Disconnect(context.TODO())
 		if err != nil {
-			d.MusicPlayer.ErrChan <- player.Err{
-				GID: gID,
-				Err: err,
-			}
+			log.Error("failed to disconnect?", log.Err(err))
+			// d.MusicPlayer.ErrChan <- player.Err{
+			// 	GID: gID,
+			// 	Err: err,
+			// }
 		}
 	}
 	d.MusicPlayer.Close()

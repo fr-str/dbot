@@ -228,8 +228,8 @@ func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceS
 		return
 	}
 
-	botChanID := d.MusicPlayer.VC.ChannelID
-	log.Trace("onUserVoiceStateChange", log.Any("d.MusicPlayer.VC.ChannelID", d.MusicPlayer.VC.ChannelID))
+	botChanID := d.MusicPlayer.VCID
+	log.Trace("onUserVoiceStateChange", log.Any("botChanID", botChanID))
 	var botChanUserCount int
 	for _, v := range g.VoiceStates {
 		if v.Member != nil && v.Member.User.Bot {

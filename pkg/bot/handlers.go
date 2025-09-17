@@ -210,7 +210,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	}
 
 	_, err = d.WebhookExecute(hook.ID, hook.Token, false, &discordgo.WebhookParams{
-		Username:  cmp.Or(i.Member.User.GlobalName, i.Member.User.Username),
+		Username:  cmp.Or(i.Member.User.Username, i.Member.User.GlobalName),
 		AvatarURL: i.Member.User.AvatarURL(""),
 		Files: []*discordgo.File{
 			{

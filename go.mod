@@ -17,6 +17,8 @@ require (
 	modernc.org/sqlite v1.38.0
 )
 
+replace github.com/bwmarrin/discordgo => github.com/ozraru/discordgo v0.26.2-0.20250118161702-308a3a2695d0
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect

@@ -1,6 +1,7 @@
 package dbot
 
 import (
+	"context"
 	"errors"
 
 	"dbot/pkg/config"
@@ -73,7 +74,7 @@ func (d *DBot) findVoiceChannel() error {
 	}
 
 	for _, v := range g.VoiceStates {
-		vc, err := d.ChannelVoiceJoin(g.ID, v.ChannelID, false, false)
+		vc, err := d.ChannelVoiceJoin(context.TODO(), g.ID, v.ChannelID, false, false)
 		if err != nil {
 			return err
 		}

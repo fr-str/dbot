@@ -43,6 +43,7 @@ func (t *Player) PlayPause() {
 type Player struct {
 	ytdlp.YTDLP
 
+	VCID    string
 	list    list
 	VC      *discordgo.VoiceConnection
 	ErrChan chan Err
