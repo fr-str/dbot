@@ -108,15 +108,15 @@ func (p *Player) PlaySound(link string) {
 func (p *Player) musicLoop() {
 	for a := range p.list.nextAudio {
 		log.Debug("list.nextAudio", log.JSON(a))
-		if len(a.Filepath) == 0 {
-			err := p.fetch(a)
-			if err != nil {
-				p.ErrChan <- p.playerErr("failed to download", err)
-				continue
-			}
-		}
+		// if len(a.Filepath) == 0 {
+		// 	err := p.fetch(a)
+		// 	if err != nil {
+		// 		p.ErrChan <- p.playerErr("failed to download", err)
+		// 		continue
+		// 	}
+		// }
 
-		err := p.play(a)
+		err := p.playV2(a)
 		if err != nil {
 			p.ErrChan <- p.playerErr("failed to play", err)
 			continue
@@ -168,6 +168,84 @@ func (p *Player) fetch(audio *Audio) error {
 	audio.Filepath = meta.Filepath
 	audio.Title = meta.Title
 	audio.Link = meta.OriginalURL
+	return nil
+}
+
+func (p *Player) playV2(audio *Audio) error {
+	log.Debug("playV2", log.JSON(audio))
+	ytdlpCMD := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", audio.Link)
+	pipe, err := ytdlpCMD.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	ffmpegCMD := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-i", "-", // audio.Filepath,
+		"-ar", "48000",
+		"-ac", "2",
+		"-af", dynaudnorm,
+		"-c:a", "libopus",
+		"-frame_duration", "20",
+		"-vbr", "off",
+		"-b:a", "64k",
+		"-application", "audio",
+		"-packet_loss", "0",
+		"-f", "opus",
+		"pipe:1",
+	)
+	ffmpegCMD.Stdin = pipe
+	ytdlpCMD.Stderr = os.Stderr
+	ffmpegCMD.Stderr = os.Stderr
+
+	audioStream, err := ffmpegCMD.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create Stdout pipe: %w", err)
+	}
+
+	err = ytdlpCMD.Start()
+	if err != nil {
+		return fmt.Errorf("cmd.Start failed: %w", err)
+	}
+
+	err = ffmpegCMD.Start()
+	if err != nil {
+		return fmt.Errorf("cmd.Start failed: %w", err)
+	}
+
+	reader, _, err := oggreader.NewWith(audioStream)
+	if err != nil {
+		return fmt.Errorf("failed to create oggreader from stdout: %w", err)
+	}
+
+	p.VC.Speaking(true)
+	defer p.VC.Speaking(false)
+	for {
+		page, _, err := reader.ParseNextPage()
+		if err != nil {
+			if err != io.EOF {
+				log.Error("failed to parse page", log.Err(err))
+			}
+			break
+		}
+
+		for _, frame := range page {
+			p.Lock()
+			select {
+			case <-p.VC.Dead:
+				p.Unlock()
+				ytdlpCMD.Process.Kill()
+				ffmpegCMD.Process.Kill()
+				return nil
+
+			case p.VC.OpusSend <- frame:
+			}
+			p.Unlock()
+		}
+	}
+
+	// Wait for FFmpeg to finish
+	ffmpegCMD.Wait()
+	ytdlpCMD.Wait()
 	return nil
 }
 
