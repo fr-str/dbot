@@ -1,7 +1,6 @@
 package dbot
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -209,8 +208,13 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		return fmt.Errorf("getWebhook: %w", err)
 	}
 
+	user, _ := d.GuildMember(i.GuildID, i.Member.User.ID)
+	if user == nil {
+		user = &discordgo.Member{}
+	}
+
 	_, err = d.WebhookExecute(hook.ID, hook.Token, false, &discordgo.WebhookParams{
-		Username:  cmp.Or(i.Member.User.Username, i.Member.User.GlobalName),
+		Username:  user.DisplayName(),
 		AvatarURL: i.Member.User.AvatarURL(""),
 		Files: []*discordgo.File{
 			{

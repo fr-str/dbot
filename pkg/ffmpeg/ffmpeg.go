@@ -70,7 +70,7 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 		"-pass", "2",
 		"-c:a", "libopus",
 		"-b:a", "48k",
-		"-movflags", "+faststart+frag_keyframe+empty_moov",
+		"-movflags", "+faststart",
 		mp4Path)
 
 	log.Info("convertToDiscordMP4 second pass", log.String("cmd", cmd.String()))
@@ -133,7 +133,7 @@ func ConvertToMP4(ctx context.Context, file string) (*os.File, error) {
 		"-c:v", "h264_qsv",
 		"-global_quality", "23",
 		"-preset", "veryslow",
-		"-movflags", "+faststart+frag_keyframe",
+		"-movflags", "+faststart",
 		mp4Path,
 	)
 	cmd.Stdout = buf
