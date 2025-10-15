@@ -172,9 +172,11 @@ func (p *Player) fetch(audio *Audio) error {
 }
 
 func (p *Player) playV2(audio *Audio) error {
+	var err error
+	var pipe io.ReadCloser
 	log.Debug("playV2", log.JSON(audio))
 	ytdlpCMD := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", audio.Link)
-	pipe, err := ytdlpCMD.StdoutPipe()
+	pipe, err = ytdlpCMD.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -247,63 +249,6 @@ func (p *Player) playV2(audio *Audio) error {
 	ffmpegCMD.Wait()
 	ytdlpCMD.Wait()
 	return nil
-}
-
-func (p *Player) play(audio *Audio) error {
-	p.Playing.Store(true)
-	defer p.Playing.Store(false)
-	// defer os.Remove(audio.Filepath)
-	log.Debug("play", log.JSON(audio))
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
-		"-i", audio.Filepath,
-		"-ar", "48000",
-		"-ac", "2",
-		"-af", dynaudnorm,
-		"-c:a", "libopus",
-		"-frame_duration", "20",
-		"-vbr", "off",
-		"-b:a", "64k",
-		"-application", "audio",
-		"-packet_loss", "0",
-		"-f", "opus",
-		"pipe:1",
-	)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create Stdout pipe: %w", err)
-	}
-
-	log.Info("play", log.String("cmd", cmd.String()))
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("cmd.Start failed: %w", err)
-	}
-
-	reader, _, err := oggreader.NewWith(stdout)
-	if err != nil {
-		return fmt.Errorf("failed to create oggreader from stdout: %w", err)
-	}
-
-	p.VC.Speaking(true)
-	defer p.VC.Speaking(false)
-	for {
-		page, _, err := reader.ParseNextPage()
-		if err != nil {
-			if err != io.EOF {
-				log.Error("failed to parse page", log.Err(err))
-			}
-			break
-		}
-
-		for _, frame := range page {
-			p.Lock()
-			p.VC.OpusSend <- frame
-			p.Unlock()
-		}
-	}
-
-	// Wait for FFmpeg to finish
-	return cmd.Wait()
 }
 
 // const dynaudnorm = `dynaudnorm=f=150:g=15:p=0.9`
