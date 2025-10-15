@@ -18,13 +18,13 @@ import (
 var ErrFfmpegError = errors.New("ffmpeg error")
 
 // file is closed when context is canceled
-func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
+func ToDiscordWebm(ctx context.Context, file string) (*os.File, error) {
 	tmpDir, ok := ctx.Value(config.DirKey).(string)
 	if !ok || len(tmpDir) == 0 {
 		return nil, errors.New("nie dałeś temp dira debilu")
 	}
 
-	mp4Path := filepath.Join(tmpDir, "discord.dupa.mp4")
+	mp4Path := filepath.Join(tmpDir, "discord.dupa.webm")
 	info, err := Probe(file)
 	if err != nil {
 		return nil, err

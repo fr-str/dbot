@@ -85,14 +85,14 @@ func (d *DBot) messagesListener(_ *discordgo.Session, m *discordgo.MessageCreate
 	if m.Author.Bot {
 		return
 	}
-	err := backupMessage(d, m.Message)
-	if err != nil {
-		log.Error("backupMessage", log.Err(err))
-	}
+	// err := backupMessage(d, m.Message)
+	// if err != nil {
+	// 	log.Error("backupMessage", log.Err(err))
+	// }
 
 	isKnownSound(d, m)
 	soundAll(d, m)
-	transcodeToh264(d, m)
+	// transcodeToh264(d, m)
 }
 
 func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
