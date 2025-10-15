@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 
 	"dbot/pkg/store"
 
@@ -17,30 +17,80 @@ import (
 
 var ErrSoundNotFound = errors.New("sound not found")
 
-func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error) {
-	var ss []store.Sound
+type soundsRandQ struct {
+	sync.Mutex
+	s map[string][]store.Sound
+}
+
+func (srq *soundsRandQ) refresh(db *store.Queries, gid string) {
+	srq.Lock()
+	defer srq.Unlock()
+	if len(srq.s[gid]) != 0 {
+		return
+	}
 	sounds, err := db.SelectSounds(context.Background(), gid)
 	if err != nil {
-		return ss, fmt.Errorf("db select failed: %w", err)
+		log.Error("db select failed: %w", err)
 	}
-	if len(sounds) == 0 {
-		return ss, fmt.Errorf("no sounds in soundboard")
-	}
+	srq.s[gid] = sounds
+}
 
+func (srq *soundsRandQ) rand(db *store.Queries, gid string) store.Sound {
+	srq.refresh(db, gid)
+	srq.Lock()
+	defer srq.Unlock()
+	sounds := srq.s[gid]
+	randInt, _ := rand.Int(rand.Reader, big.NewInt(int64(len(sounds))))
+	log.Trace("soundsRandQ.rand", log.Any("srq.s[gid]", len(srq.s[gid])), log.Any("randInt", randInt))
+	v := sounds[randInt.Int64()]
+
+	sounds[randInt.Int64()] = sounds[len(sounds)-1]
+	sounds = sounds[:len(sounds)-1]
+	srq.s[gid] = sounds
+	return v
+}
+
+func (srq *soundsRandQ) iter(gid string) <-chan store.Sound {
+	c := make(chan store.Sound)
+	go func() {
+		defer close(c)
+
+		srq.Lock()
+		defer srq.Unlock()
+
+		sounds, ok := srq.s[gid]
+		if !ok {
+			return
+		}
+
+		for _, s := range sounds {
+			c <- s
+		}
+	}()
+	return c
+}
+
+var srq = soundsRandQ{
+	s: map[string][]store.Sound{},
+}
+
+func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error) {
+	srq.refresh(db, gid)
+	var ss []store.Sound
 	name = strings.ToLower(strings.ReplaceAll(name, " ", ""))
 	if strings.HasPrefix(name, "sound") || strings.HasPrefix(name, "event") {
 		if len(name) < 5 {
-			return append(ss, randSound(sounds)), nil
+			return append(ss, srq.rand(db, gid)), nil
 		}
 
 		num := name[5:]
 		numInt, err := strconv.Atoi(num)
 		if err != nil {
-			return append(ss, randSound(sounds)), nil
+			return append(ss, srq.rand(db, gid)), nil
 		}
 
 		for range min(numInt, 2137) {
-			ss = append(ss, randSound(sounds))
+			ss = append(ss, srq.rand(db, gid))
 		}
 		return ss, nil
 
@@ -50,7 +100,7 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 	var fullRatio int
 	var partialSound store.Sound
 	var partialRatio int
-	for _, sound := range sounds {
+	for sound := range srq.iter(gid) {
 		for _, alias := range sound.Aliases {
 			ratio := fuzzy.Ratio(alias, name)
 			if ratio > 80 && ratio > fullRatio {
@@ -78,10 +128,4 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 	}
 
 	return ss, ErrSoundNotFound
-}
-
-func randSound(sounds []store.Sound) store.Sound {
-	randInt, _ := rand.Int(rand.Reader, big.NewInt(int64(len(sounds))))
-	log.Trace("randSound", log.Any("randInt", randInt))
-	return sounds[randInt.Int64()]
 }
