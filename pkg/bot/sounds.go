@@ -41,6 +41,7 @@ func (srq *soundsRandQ) rand(db *store.Queries, gid string) store.Sound {
 	defer srq.Unlock()
 	sounds := srq.s[gid]
 	randInt, _ := rand.Int(rand.Reader, big.NewInt(int64(len(sounds))))
+
 	log.Trace("soundsRandQ.rand", log.Any("srq.s[gid]", len(srq.s[gid])), log.Any("randInt", randInt))
 	v := sounds[randInt.Int64()]
 
@@ -96,11 +97,15 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 
 	}
 
+	sounds, err := db.SelectSounds(context.Background(), gid)
+	if err != nil {
+		log.Error("db select failed: %w", err)
+	}
 	var fullSound store.Sound
 	var fullRatio int
 	var partialSound store.Sound
 	var partialRatio int
-	for sound := range srq.iter(gid) {
+	for _, sound := range sounds {
 		for _, alias := range sound.Aliases {
 			ratio := fuzzy.Ratio(alias, name)
 			if ratio > 80 && ratio > fullRatio {
