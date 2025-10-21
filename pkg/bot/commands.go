@@ -147,7 +147,7 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"set-bot-channel": d.handleMapChannel,
 		"pause-play":      d.handlePause,
 		"sound":           d.handleSound,
-		"to-mp4":          d.handleToWebm,
+		"to-mp4":          d.handleToMP4,
 		"save-playlist":   d.savePlaylist,
 		"load-playlist":   d.playPlaylistFromDB,
 	}

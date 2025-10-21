@@ -148,7 +148,7 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 	return nil
 }
 
-func (d *DBot) handleToWebm(ctx context.Context, i *discordgo.InteractionCreate) error {
+func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
 		Link string                       `opt:"link"`
 		Att  *discordgo.MessageAttachment `opt:"file"`
@@ -173,7 +173,7 @@ func (d *DBot) handleToWebm(ctx context.Context, i *discordgo.InteractionCreate)
 		},
 	})
 
-	log.Trace("handleToWebm", log.String("url", url))
+	log.Trace("handleToMP4", log.String("url", url))
 
 	info, err := d.DownloadVideoSmall(ctx, url)
 	if err != nil {
@@ -186,21 +186,21 @@ func (d *DBot) handleToWebm(ctx context.Context, i *discordgo.InteractionCreate)
 	}
 
 	stat, err := f.Stat()
-	log.Trace("handleToWebm", log.String("file", f.Name()), log.Int("size_KB", stat.Size()>>10))
+	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size_KB", stat.Size()>>10))
 	if err != nil {
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
 
 	if stat.Size() > 10*1_000_000 {
-		log.Info("failed converting to webm, trying to convert to discord mp4")
+		log.Info("failed converting to MP4, trying to convert to discord mp4")
 		msg := "file is too big, reducing bitrate and resolution and running duble pass"
 		d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: &msg,
 		})
 
-		f, err = ffmpeg.ToDiscordWebm(ctx, info.Filepath)
+		f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath)
 		if err != nil {
-			return fmt.Errorf("failed converting to webm: %w", err)
+			return fmt.Errorf("failed converting to MP4: %w", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (d *DBot) handleToWebm(ctx context.Context, i *discordgo.InteractionCreate)
 		Files: []*discordgo.File{
 			{
 				Name:        "dupa.mp4",
-				ContentType: "video/webm",
+				ContentType: "video/mp4",
 				Reader:      f,
 			},
 		},

@@ -58,6 +58,7 @@ func ConnectAudioCache(ctx context.Context, filename string, schema string) (*ca
 }
 
 func ConnectStore(ctx context.Context, filename string, schema string) (*store.Queries, error) {
+	log.Trace("[dupa]", log.Any("filepath.Join(config.DB_DIR, filename)", filepath.Join(config.DB_DIR, filename)))
 	w, err := sql.Open("sqlite", filepath.Join(config.DB_DIR, filename))
 	if err != nil {
 		return nil, err
