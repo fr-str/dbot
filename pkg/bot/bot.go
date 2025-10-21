@@ -218,6 +218,8 @@ func (d *DBot) SaveSound(ctx context.Context, params SaveSoundParams) error {
 	}
 	log.Trace("SaveSound", log.JSON(sound))
 
+	srq.dropAndLoad(d.Store, sound.Gid)
+
 	return nil
 }
 

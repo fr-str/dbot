@@ -35,6 +35,13 @@ func (srq *soundsRandQ) refresh(db *store.Queries, gid string) {
 	srq.s[gid] = sounds
 }
 
+func (srq *soundsRandQ) dropAndLoad(db *store.Queries, gid string) {
+	srq.Lock()
+	srq.s[gid] = nil
+	srq.Unlock()
+	srq.refresh(db, gid)
+}
+
 func (srq *soundsRandQ) rand(db *store.Queries, gid string) store.Sound {
 	srq.refresh(db, gid)
 	srq.Lock()
@@ -49,26 +56,6 @@ func (srq *soundsRandQ) rand(db *store.Queries, gid string) store.Sound {
 	sounds = sounds[:len(sounds)-1]
 	srq.s[gid] = sounds
 	return v
-}
-
-func (srq *soundsRandQ) iter(gid string) <-chan store.Sound {
-	c := make(chan store.Sound)
-	go func() {
-		defer close(c)
-
-		srq.Lock()
-		defer srq.Unlock()
-
-		sounds, ok := srq.s[gid]
-		if !ok {
-			return
-		}
-
-		for _, s := range sounds {
-			c <- s
-		}
-	}()
-	return c
 }
 
 var srq = soundsRandQ{
