@@ -108,13 +108,9 @@ func (p *Player) PlaySound(link string) {
 func (p *Player) musicLoop() {
 	for a := range p.list.nextAudio {
 		log.Debug("list.nextAudio", log.JSON(a))
-		// if len(a.Filepath) == 0 {
-		// 	err := p.fetch(a)
-		// 	if err != nil {
-		// 		p.ErrChan <- p.playerErr("failed to download", err)
-		// 		continue
-		// 	}
-		// }
+		if len(a.Filepath) == 0 && strings.Contains(a.Link, p.VC.GuildID) {
+			a.Filepath = filepath.Join(config.BACKUP_DIR, a.Link)
+		}
 
 		err := p.playV2(a)
 		if err != nil {
@@ -176,7 +172,11 @@ func (p *Player) playV2(audio *Audio) error {
 	var pipe io.ReadCloser
 	log.Debug("playV2", log.JSON(audio))
 	ytdlpCMD := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", audio.Link)
-	pipe, err = ytdlpCMD.StdoutPipe()
+	if audio.Filepath == "" {
+		pipe, err = ytdlpCMD.StdoutPipe()
+	} else {
+		pipe, err = os.Open(audio.Filepath)
+	}
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,6 @@ func (p *Player) playV2(audio *Audio) error {
 		"pipe:1",
 	)
 	ffmpegCMD.Stdin = pipe
-	ytdlpCMD.Stderr = os.Stderr
 	ffmpegCMD.Stderr = os.Stderr
 
 	audioStream, err := ffmpegCMD.StdoutPipe()
@@ -204,9 +203,12 @@ func (p *Player) playV2(audio *Audio) error {
 		return fmt.Errorf("failed to create Stdout pipe: %w", err)
 	}
 
-	err = ytdlpCMD.Start()
-	if err != nil {
-		return fmt.Errorf("cmd.Start failed: %w", err)
+	if audio.Filepath == "" {
+		ytdlpCMD.Stderr = os.Stderr
+		err = ytdlpCMD.Start()
+		if err != nil {
+			return fmt.Errorf("cmd.Start failed: %w", err)
+		}
 	}
 
 	err = ffmpegCMD.Start()
@@ -235,7 +237,9 @@ func (p *Player) playV2(audio *Audio) error {
 			select {
 			case <-p.VC.Dead:
 				p.Unlock()
-				ytdlpCMD.Process.Kill()
+				if audio.Filepath == "" {
+					ytdlpCMD.Process.Kill()
+				}
 				ffmpegCMD.Process.Kill()
 				return nil
 
@@ -247,7 +251,9 @@ func (p *Player) playV2(audio *Audio) error {
 
 	// Wait for FFmpeg to finish
 	ffmpegCMD.Wait()
-	ytdlpCMD.Wait()
+	if audio.Filepath == "" {
+		ytdlpCMD.Wait()
+	}
 	return nil
 }
 
