@@ -10,8 +10,23 @@ import (
 	"time"
 )
 
+const deleteArtefact = `-- name: DeleteArtefact :exec
+DELETE FROM artefacts WHERE gid = ?1 AND chid = ?2 and msgid = ?3
+`
+
+type DeleteArtefactParams struct {
+	Gid   string
+	Chid  string
+	Msgid string
+}
+
+func (q *Queries) DeleteArtefact(ctx context.Context, arg DeleteArtefactParams) error {
+	_, err := q.db.ExecContext(ctx, deleteArtefact, arg.Gid, arg.Chid, arg.Msgid)
+	return err
+}
+
 const getArtefact = `-- name: GetArtefact :one
-SELECT origin_url, path, media_type, hash, created_at FROM artefacts WHERE origin_url = ?1
+SELECT origin_url, path, media_type, hash, created_at, gid, chid, msgid FROM artefacts WHERE origin_url = ?1
 `
 
 func (q *Queries) GetArtefact(ctx context.Context, originUrl string) (Artefact, error) {
@@ -23,21 +38,73 @@ func (q *Queries) GetArtefact(ctx context.Context, originUrl string) (Artefact, 
 		&i.MediaType,
 		&i.Hash,
 		&i.CreatedAt,
+		&i.Gid,
+		&i.Chid,
+		&i.Msgid,
 	)
 	return i, err
 }
 
+const getArtefacts = `-- name: GetArtefacts :many
+SELECT origin_url, path, media_type, hash, created_at, gid, chid, msgid FROM artefacts 
+WHERE 
+    media_type in ('image/jpg','image/png') 
+AND 
+    gid = ?
+ORDER BY created_at DESC LIMIT 100 OFFSET ?
+`
+
+type GetArtefactsParams struct {
+	Gid    string
+	Offset int64
+}
+
+func (q *Queries) GetArtefacts(ctx context.Context, arg GetArtefactsParams) ([]Artefact, error) {
+	rows, err := q.db.QueryContext(ctx, getArtefacts, arg.Gid, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Artefact
+	for rows.Next() {
+		var i Artefact
+		if err := rows.Scan(
+			&i.OriginUrl,
+			&i.Path,
+			&i.MediaType,
+			&i.Hash,
+			&i.CreatedAt,
+			&i.Gid,
+			&i.Chid,
+			&i.Msgid,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertArtefact = `-- name: InsertArtefact :exec
-INSERT INTO artefacts (origin_url,path, media_type, hash, created_at)
-VALUES (?1,?2, ?3, ?4, ?5)
+INSERT INTO artefacts (origin_url,path, media_type, hash, created_at,gid,chid,msgid)
+VALUES (?1,?2, ?3, ?4, ?5, ?6, ?7, ?8)
 `
 
 type InsertArtefactParams struct {
 	OriginUrl string
 	Path      string
 	MediaType string
-	Hash      string
+	Hash      int64
 	CreatedAt time.Time
+	Gid       string
+	Chid      string
+	Msgid     string
 }
 
 func (q *Queries) InsertArtefact(ctx context.Context, arg InsertArtefactParams) error {
@@ -47,6 +114,9 @@ func (q *Queries) InsertArtefact(ctx context.Context, arg InsertArtefactParams) 
 		arg.MediaType,
 		arg.Hash,
 		arg.CreatedAt,
+		arg.Gid,
+		arg.Chid,
+		arg.Msgid,
 	)
 	return err
 }

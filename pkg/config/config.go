@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -45,17 +46,20 @@ func Load() {
 	defer cancel()
 	ENV = env.Get("ENV", "dev")
 	DB_DIR = env.Get("DB_DIR", "data")
-
 	TOKEN = env.Get("TOKEN", "")
 	GUILD_ID = env.Get("GUILD_ID", "")
-
 	TMP_PATH = env.Get("TMP_PATH", filepath.Join(os.TempDir(), "dbot"))
-
 	COOKIE_PATH = env.Get("COOKIE_PATH", "")
-
 	FFMPEG_HW_ACCEL = env.Get("FFMPEG_HW_ACCEL", false)
-
 	BACKUP_DIR = env.Get("BACKUP_DIR", filepath.Join(os.TempDir(), "dbot", "backup"))
+
+	fmt.Println("ENV =", ENV)
+	fmt.Println("DB_DIR =", DB_DIR)
+	fmt.Println("GUILD_ID =", GUILD_ID)
+	fmt.Println("TMP_PATH =", TMP_PATH)
+	fmt.Println("COOKIE_PATH =", COOKIE_PATH)
+	fmt.Println("FFMPEG_HW_ACCEL =", FFMPEG_HW_ACCEL)
+	fmt.Println("BACKUP_DIR =", BACKUP_DIR)
 
 	dirs := []string{
 		BACKUP_DIR,

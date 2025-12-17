@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=bind,source=.,target=. \
-    go build -trimpath -o /bin/dbot ./cmd/dbot
+    CGO_ENABLED=0 go build -trimpath -o /bin/dbot ./cmd/dbot
 
 ################################################################################
 FROM archlinux:latest AS final

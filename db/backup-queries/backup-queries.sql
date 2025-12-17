@@ -9,8 +9,19 @@ WHERE msg_id = :msg_id;
 
 
 -- name: InsertArtefact :exec
-INSERT INTO artefacts (origin_url,path, media_type, hash, created_at)
-VALUES (:origin_url,:path, :media_type, :hash, :created_at);
+INSERT INTO artefacts (origin_url,path, media_type, hash, created_at,gid,chid,msgid)
+VALUES (:origin_url,:path, :media_type, :hash, :created_at, :gid, :chid, :msgid);
+
+-- name: GetArtefacts :many
+SELECT * FROM artefacts 
+WHERE 
+    media_type in ('image/jpg','image/png') 
+AND 
+    gid = ?
+ORDER BY created_at DESC LIMIT 100 OFFSET :offset;
+
+-- name: DeleteArtefact :exec
+DELETE FROM artefacts WHERE gid = :gid AND chid = :chid and msgid = :msgid;
 
 -- name: GetArtefact :one
 SELECT * FROM artefacts WHERE origin_url = :origin_url;

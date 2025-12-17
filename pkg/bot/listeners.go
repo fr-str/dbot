@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"dbot/pkg/backup"
 	"dbot/pkg/config"
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/ytdlp"
@@ -27,6 +28,7 @@ func (d *DBot) RegisterEventListiners() {
 	d.AddHandler(d.messagesListener)
 	d.AddHandler(d.messagesEditListener)
 	d.AddHandler(d.onUserVoiceStateChange)
+	d.AddHandler(d.messageDeleteListener)
 }
 
 func createContextTmpDir(ctx context.Context) context.Context {
@@ -75,13 +77,38 @@ func (d *DBot) messagesEditListener(_ *discordgo.Session, m *discordgo.MessageUp
 		return
 	}
 
-	err := updateBackupMessage(d, m.Message)
+	// err := updateBackupMessage(d, m.Message)
+	// if err != nil {
+	// 	log.Error("updateBackupMessage", log.Err(err))
+	// }
+}
+
+func (d *DBot) messageDeleteListener(_ *discordgo.Session, m *discordgo.MessageDelete) {
+	err := d.Backup.DeleteArtefact(d.Ctx, backup.DeleteArtefactParams{
+		Gid:   m.GuildID,
+		Chid:  m.ChannelID,
+		Msgid: m.ID,
+	})
 	if err != nil {
-		log.Error("updateBackupMessage", log.Err(err))
+		log.Error("failed to delete artefact", log.Err(err))
 	}
 }
 
 func (d *DBot) messagesListener(_ *discordgo.Session, m *discordgo.MessageCreate) {
+	info, _, err := BackupAttachment(d, m.Message)
+	if err == nil && info.PossibleDupe != nil {
+		msg, err := d.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Możliwy duplikat https://discord.com/channels/%s/%s/%s",
+			info.PossibleDupe.Gid,
+			info.PossibleDupe.Chid,
+			info.PossibleDupe.Msgid,
+		))
+		if err == nil {
+			go func() {
+				time.Sleep(60 * time.Second)
+				d.ChannelMessageDelete(msg.ChannelID, msg.ID)
+			}()
+		}
+	}
 	if m.Author.Bot {
 		return
 	}
@@ -246,5 +273,5 @@ func (d *DBot) onUserVoiceStateChange(_ *discordgo.Session, vs *discordgo.VoiceS
 		return
 	}
 
-	d.wypierdalajZVC(vs.GuildID)
+	d.wypierdalajZVC()
 }

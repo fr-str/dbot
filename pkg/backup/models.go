@@ -12,8 +12,11 @@ type Artefact struct {
 	OriginUrl string
 	Path      string
 	MediaType string
-	Hash      string
+	Hash      int64
 	CreatedAt time.Time
+	Gid       string
+	Chid      string
+	Msgid     string
 }
 
 type MsgBackup struct {

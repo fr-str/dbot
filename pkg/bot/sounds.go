@@ -80,8 +80,8 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 		for range min(numInt, 2137) {
 			ss = append(ss, srq.rand(db, gid))
 		}
-		return ss, nil
 
+		return ss, nil
 	}
 
 	sounds, err := db.SelectSounds(context.Background(), gid)

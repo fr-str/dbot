@@ -1,9 +1,13 @@
 package dbot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"net/http"
 	"os"
@@ -11,6 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/image/webp"
+
+	"github.com/corona10/goimagehash"
 
 	"dbot/pkg/backup"
 	"dbot/pkg/config"
@@ -33,7 +41,7 @@ func backupMessage(d *DBot, m *discordgo.Message) error {
 	}
 
 	var err error
-	attachments, err := backupAttachment(d, m)
+	_, attachments, err := BackupAttachment(d, m)
 	if err != nil {
 		return err
 	}
@@ -73,30 +81,40 @@ func updateBackupMessage(d *DBot, m *discordgo.Message) error {
 	return nil
 }
 
-func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
+func BackupAttachment(d *DBot, m *discordgo.Message) (BackupFile, string, error) {
 	if len(m.Attachments) == 0 {
-		return "", nil
+		return BackupFile{}, "", nil
 	}
 
+	var info BackupFile
 	att := make([]string, len(m.Attachments))
 	for i, a := range m.Attachments {
-		resp, err := http.Get(a.URL)
+		log.Info("downloading attachment", log.String("url", a.URL))
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.URL, nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to get '%s': %w", a.URL, err)
+			return BackupFile{}, "", fmt.Errorf("failed to create request '%s': %w", a.URL, err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return BackupFile{}, "", fmt.Errorf("failed to get '%s': %w", a.URL, err)
 		}
 		defer resp.Body.Close()
 
-		info, err := d.backupArtefact(d.Ctx, BackupFileParams{
+		info, err = d.backupArtefact(d.Ctx, BackupFileParams{
 			Name:        a.Filename,
-			ContentType: a.ContentType,
+			ContentType: resp.Header.Get("content-type"),
 			Dirs:        "attachments",
 			PrependTime: true,
 			OriginUrl:   a.URL,
 			GID:         m.GuildID,
+			CHID:        m.ChannelID,
+			MSGID:       m.ID,
 			File:        resp.Body,
 		})
 		if err != nil {
-			return "", fmt.Errorf("backup artefact: %w", err)
+			return BackupFile{}, "", fmt.Errorf("backup artefact: %w", err)
 		}
 
 		att[i] = info.Name
@@ -104,24 +122,49 @@ func backupAttachment(d *DBot, m *discordgo.Message) (string, error) {
 
 	b, err := json.Marshal(att)
 	if err != nil {
-		return "", fmt.Errorf("encode attachments: %w", err)
+		return BackupFile{}, "", fmt.Errorf("encode attachments: %w", err)
 	}
 
-	return string(b), nil
+	return info, string(b), nil
 }
 
+const (
+	JPG  = "image/jpg"
+	JPEG = "image/jpeg"
+	PNG  = "image/png"
+	WEBP = "image/webp"
+)
+
 func (d *DBot) backupArtefact(ctx context.Context, params BackupFileParams) (BackupFile, error) {
+	var buf bytes.Buffer
+	params.File = io.TeeReader(params.File, &buf)
 	info, err := d.backupFile(params)
 	if err != nil {
 		return info, fmt.Errorf("backup artefact '%s': %w", params.Name, err)
+	}
+
+	hash, err := generateHash(params.ContentType, &buf)
+	if err != nil {
+		log.Error("img hash failed", log.Err(err), log.String("content", params.ContentType), log.String("url", params.OriginUrl))
+	}
+
+	log.Trace("[dupa]", log.Uint("hash", hash), log.String("content", params.ContentType))
+	if hash > 0 {
+		art, unique := d.checkHashAgainstDB(params.GID, hash)
+		if !unique {
+			info.PossibleDupe = &art
+		}
 	}
 
 	err = d.Backup.InsertArtefact(ctx, backup.InsertArtefactParams{
 		Path:      info.Name,
 		MediaType: params.ContentType,
 		OriginUrl: params.OriginUrl,
-		Hash:      info.Name,
+		Hash:      int64(hash),
 		CreatedAt: time.Now(),
+		Gid:       params.GID,
+		Chid:      params.CHID,
+		Msgid:     params.MSGID,
 	})
 	if err != nil {
 		return info, fmt.Errorf("insert artefact: %w", err)
@@ -130,15 +173,75 @@ func (d *DBot) backupArtefact(ctx context.Context, params BackupFileParams) (Bac
 	return info, nil
 }
 
+func (d *DBot) checkHashAgainstDB(gid string, hash uint64) (art backup.Artefact, unique bool) {
+	hash1 := goimagehash.NewExtImageHash([]uint64{hash}, goimagehash.DHash, 64)
+	offset := int64(0)
+	do := true
+	for do {
+		data, err := d.Backup.GetArtefacts(d.Ctx, backup.GetArtefactsParams{
+			Gid:    gid,
+			Offset: offset,
+		})
+		if err != nil {
+			log.Error("failed to get Artiefacts", log.Err(err))
+			return backup.Artefact{}, true
+		}
+		for _, d := range data {
+			hash2 := goimagehash.NewExtImageHash([]uint64{uint64(d.Hash)}, goimagehash.DHash, 64)
+			dist, err := hash1.Distance(hash2)
+			if err != nil {
+				log.Error("failed to calc distance", log.Err(err))
+			}
+			if dist <= 3 {
+				log.Trace("[dupa]", log.Any("dist", dist))
+				return d, false
+			}
+		}
+
+		do = len(data) == 100
+		offset += 100
+	}
+
+	return backup.Artefact{}, true
+}
+
+func generateHash(content string, f io.Reader) (uint64, error) {
+	var img image.Image
+	var err error
+	fmt.Println(content)
+	switch content {
+	case PNG:
+		img, err = png.Decode(f)
+	case JPG, JPEG:
+		img, err = jpeg.Decode(f)
+	case WEBP:
+		img, err = webp.Decode(f)
+	default:
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	hash, err := goimagehash.DifferenceHash(img)
+	if err != nil {
+		return 0, err
+	}
+
+	return hash.GetHash(), nil
+}
+
 type BackupFile struct {
-	Name string
-	Size int64
+	Name         string
+	Size         int64
+	PossibleDupe *backup.Artefact
 }
 
 type BackupFileParams struct {
 	Name        string
 	Dirs        string
 	GID         string
+	CHID        string
+	MSGID       string
 	ContentType string
 	OriginUrl   string
 	PrependTime bool
@@ -157,7 +260,9 @@ func (d *DBot) backupFile(params BackupFileParams) (BackupFile, error) {
 	if params.PrependTime {
 		name = fmt.Sprintf("%d-%s", time.Now().Unix(), params.Name)
 	}
-	f, err := os.Create(filepath.Join(dir, name))
+
+	pf := filepath.Join(dir, name)
+	f, err := os.Create(pf)
 	if err != nil {
 		return backupFile, fmt.Errorf("failed to open file: %w", err)
 	}
@@ -168,7 +273,7 @@ func (d *DBot) backupFile(params BackupFileParams) (BackupFile, error) {
 		return backupFile, fmt.Errorf("failed to copy file: %w", err)
 	}
 
-	log.Trace("backupFile", log.String("name", name), log.Int("size", n))
+	log.Trace("backupFile", log.String("name", pf), log.Int("size", n))
 	backupFile.Name = strings.TrimLeft(f.Name(), config.BACKUP_DIR)
 	backupFile.Size = n
 

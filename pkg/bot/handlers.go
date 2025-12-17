@@ -60,7 +60,7 @@ func (d *DBot) handleWypierdalaj(ctx context.Context, i *discordgo.InteractionCr
 		},
 	})
 
-	d.wypierdalajZVC(i.GuildID)
+	d.wypierdalajZVC()
 	return nil
 }
 

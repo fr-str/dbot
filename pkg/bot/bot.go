@@ -162,7 +162,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 
 	go func() {
 		<-vc.Dead
-		d.wypierdalajZVC(gID)
+		d.wypierdalajZVC()
 	}()
 
 	return nil
@@ -171,7 +171,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 const (
 	musicChannel = "music"
 	errorChannel = "error"
-	adminChannel = "admin"
+	// adminChannel = "admin"
 )
 
 type SaveSoundParams struct {
@@ -278,7 +278,7 @@ func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) 
 	return ch, nil
 }
 
-func (d *DBot) wypierdalajZVC(gID string) error {
+func (d *DBot) wypierdalajZVC() error {
 	if d.MusicPlayer.VC != nil {
 		err := d.MusicPlayer.VC.Disconnect(context.TODO())
 		if err != nil {
@@ -315,7 +315,7 @@ func (d *DBot) play(gID, uID string, url string) error {
 		}
 
 	case strings.Contains(url, "/playlist"):
-		err := d.playFromYTPlaylist(gID, url)
+		err := d.playFromYTPlaylist(url)
 		if err != nil {
 			return fmt.Errorf("failed load playlist: %w", err)
 		}
@@ -366,7 +366,7 @@ func (d *DBot) searchAndPlay(url string) error {
 	return nil
 }
 
-func (d *DBot) playFromYTPlaylist(gID, url string) error {
+func (d *DBot) playFromYTPlaylist(url string) error {
 	info, err := d.PlaylistInfo(url)
 	if err != nil {
 		return fmt.Errorf("failed getting playlist info: %w", err)
