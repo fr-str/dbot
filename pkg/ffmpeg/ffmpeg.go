@@ -18,7 +18,7 @@ import (
 var ErrFfmpegError = errors.New("ffmpeg error")
 
 // file is closed when context is canceled
-func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
+func ToDiscordMP4(ctx context.Context, file string, mute bool) (*os.File, error) {
 	tmpDir, ok := ctx.Value(config.DirKey).(string)
 	if !ok || len(tmpDir) == 0 {
 		return nil, errors.New("nie dałeś temp dira debilu")
@@ -66,12 +66,20 @@ func ToDiscordMP4(ctx context.Context, file string) (*os.File, error) {
 	// second pass
 	cmd = exec.CommandContext(ctx, "ffmpeg")
 	cmd.Args = append(cmd.Args, base...)
-	cmd.Args = append(cmd.Args,
-		"-pass", "2",
-		"-c:a", "libopus",
-		"-b:a", "48k",
-		"-movflags", "+faststart",
-		mp4Path)
+	if mute {
+		cmd.Args = append(cmd.Args,
+			"-pass", "2",
+			"-an",
+			"-movflags", "+faststart",
+			mp4Path)
+	} else {
+		cmd.Args = append(cmd.Args,
+			"-pass", "2",
+			"-c:a", "libopus",
+			"-b:a", "48k",
+			"-movflags", "+faststart",
+			mp4Path)
+	}
 
 	log.Info("convertToDiscordMP4 second pass", log.String("cmd", cmd.String()))
 	err = runCmd(cmd)

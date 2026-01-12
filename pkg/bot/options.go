@@ -88,6 +88,9 @@ func UnmarshalOptions(sess *discordgo.Session, options []*discordgo.ApplicationC
 
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			field.SetUint(option.UintValue())
+
+		case reflect.Bool:
+			field.SetBool(option.BoolValue())
 		}
 	}
 

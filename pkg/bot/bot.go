@@ -159,6 +159,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 	// vc.LogLevel = 3
 	d.MusicPlayer.VC = vc
 	d.MusicPlayer.VCID = channel.ChannelID
+	log.Trace("[dupa]", log.Any("channel.ChannelID", channel.ChannelID))
 
 	go func() {
 		<-vc.Dead

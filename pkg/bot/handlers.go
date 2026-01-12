@@ -152,6 +152,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	var opts struct {
 		Link string                       `opt:"link"`
 		Att  *discordgo.MessageAttachment `opt:"file"`
+		Mute bool                         `opt:"mute"`
 	}
 	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
@@ -191,14 +192,14 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
 
-	if stat.Size() > 10*1_000_000 {
+	if stat.Size() > 10*1_000_000 || opts.Mute {
 		log.Info("failed converting to MP4, trying to convert to discord mp4")
 		msg := "file is too big, reducing bitrate and resolution and running duble pass"
 		d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Content: &msg,
 		})
 
-		f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath)
+		f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath, opts.Mute)
 		if err != nil {
 			return fmt.Errorf("failed converting to MP4: %w", err)
 		}
