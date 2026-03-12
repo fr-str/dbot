@@ -250,7 +250,20 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		}
 	}
 
-	hook, err := d.GetWebHook(ctx, i.ChannelID, DbotHook, "")
+	channel, err := d.Session.Channel(i.ChannelID)
+	if err != nil {
+		return fmt.Errorf("failed to get channel: %w", err)
+	}
+
+	webhookChannelID := i.ChannelID
+	isThread := channel.Type == discordgo.ChannelTypeGuildNewsThread ||
+		channel.Type == discordgo.ChannelTypeGuildPublicThread ||
+		channel.Type == discordgo.ChannelTypeGuildPrivateThread
+	if isThread {
+		webhookChannelID = channel.ParentID
+	}
+
+	hook, err := d.GetWebHook(ctx, webhookChannelID, DbotHook, "")
 	if err != nil {
 		return fmt.Errorf("getWebhook: %w", err)
 	}
@@ -268,6 +281,22 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	} else {
 		fileName = "dupa.mp4"
 		contentType = "video/mp4"
+	}
+
+	if isThread {
+		_, err = d.Session.WebhookThreadExecute(hook.ID, hook.Token, false, i.ChannelID, &discordgo.WebhookParams{
+			Username:  user.DisplayName(),
+			AvatarURL: i.Member.User.AvatarURL(""),
+			Files: []*discordgo.File{
+				{
+					Name:        fileName,
+					ContentType: contentType,
+					Reader:      f,
+				},
+			},
+			Flags: discordgo.MessageFlagsSuppressEmbeds,
+		})
+		return err
 	}
 
 	_, err = d.WebhookExecute(hook.ID, hook.Token, false, &discordgo.WebhookParams{
