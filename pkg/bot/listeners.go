@@ -54,6 +54,16 @@ func (d *DBot) commands(cmdHandlers map[string]cmdHandler) func(s *discordgo.Ses
 
 			err := h(ctx, i)
 			if err != nil {
+				if errors.Is(err, ErrVoiceDisabled) {
+					d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Voice is disabled",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+					return
+				}
 				log.Error("uuu duuuuuuuuuuuuuuuuuupa", log.Err(err), log.String("cmd", i.ApplicationCommandData().Name), log.String("err_type", fmt.Sprintf("%T", err)))
 
 				msg := err.Error()
@@ -231,6 +241,10 @@ func isKnownSound(d *DBot, m *discordgo.MessageCreate) {
 
 	err = d.connectVoice(m.GuildID, m.Author.ID)
 	if err != nil {
+		if errors.Is(err, ErrVoiceDisabled) && m.ChannelID == "629733112074600469" {
+			d.ChannelMessageSend(m.ChannelID, "Voice is disabled")
+			return
+		}
 		log.Error(err.Error())
 		return
 	}

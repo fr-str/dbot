@@ -7,6 +7,7 @@ import (
 
 	dbot "dbot/pkg/bot"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
 )
 
@@ -35,6 +36,47 @@ func StartServer(d *dbot.DBot) {
 		}
 
 		w.WriteHeader(http.StatusOK)
+	})
+	http.HandleFunc("/api/init-scrape", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+		go func() {
+			gID := ""
+
+			channels, err := d.GuildChannels(gID)
+			if err != nil {
+				panic(err)
+			}
+			for _, c := range channels {
+				fmt.Println(c.Name)
+			}
+			for _, ch := range channels {
+				if ch.Type != discordgo.ChannelTypeGuildText {
+					continue
+				}
+				log.Trace("[dupa]", log.Any("ch.Name", ch.Name))
+				lastID := ""
+				for {
+					msgs, err := d.ChannelMessages(ch.ID, 100, lastID, "", "")
+					if err != nil {
+						fmt.Println(err)
+						return
+					}
+					if len(msgs) > 0 {
+						lastID = msgs[len(msgs)-1].ID
+					}
+					for _, msg := range msgs {
+						msg.GuildID = gID
+						if len(msg.Attachments) > 0 {
+							dbot.BackupAttachment(d, msg)
+						}
+					}
+					if len(msgs) < 100 {
+						break
+					}
+				}
+			}
+			log.Info("DONE")
+		}()
 	})
 	go func() {
 		log.Info("starting server: http://localhost:58008")

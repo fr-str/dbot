@@ -15,11 +15,11 @@ require (
 	github.com/pressly/goose/v3 v3.26.0
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/image v0.34.0
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.49.0
 	modernc.org/sqlite v1.40.0
 )
 
-replace github.com/bwmarrin/discordgo => github.com/ozraru/discordgo v0.26.2-0.20250118161702-308a3a2695d0
+// replace github.com/bwmarrin/discordgo => github.com/ozraru/discordgo v0.26.2-0.20250118161702-308a3a2695d0
 
 require (
 	cel.dev/expr v0.25.0 // indirect
@@ -99,10 +99,10 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251103181224-f26f9409b101 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101 // indirect
 	google.golang.org/grpc v1.76.0 // indirect

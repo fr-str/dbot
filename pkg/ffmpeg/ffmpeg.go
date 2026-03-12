@@ -104,6 +104,64 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool) (*os.File, error)
 	return f, nil
 }
 
+type GifSettings struct {
+	Height int
+	FPS    int
+}
+
+// file is closed when context is canceled
+func ToDiscordGIF(ctx context.Context, file string, settings GifSettings) (*os.File, error) {
+	tmpDir, ok := ctx.Value(config.DirKey).(string)
+	if !ok || len(tmpDir) == 0 {
+		return nil, errors.New("nie dałeś temp dira debilu")
+	}
+
+	gifPath := filepath.Join(tmpDir, "discord.dupa.gif")
+	info, err := Probe(file)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Trace("ToDiscordGIF", log.String("dir", tmpDir))
+
+	filter := fmt.Sprintf(
+		"scale=-2:%d,fps=%d,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle",
+		settings.Height, settings.FPS,
+	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg")
+	cmd.Args = append(cmd.Args,
+		"-hide_banner",
+		"-i", file,
+		"-t", fmt.Sprintf("%.2f", info.Format.Duration.Seconds()),
+		"-vf", filter,
+		"-y",
+		gifPath,
+	)
+
+	log.Info("convertToDiscordGIF", log.String("cmd", cmd.String()))
+	err = runCmd(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(gifPath)
+	if err != nil {
+		return nil, err
+	}
+	stat, err := f.Stat()
+	log.Trace("convertToDiscordGIF",
+		log.String("gifPath", gifPath),
+		log.String("file", f.Name()), log.Int("size", stat.Size()))
+
+	go func() {
+		<-ctx.Done()
+		f.Close()
+	}()
+
+	return f, nil
+}
+
 func runCmd(cmd *exec.Cmd) error {
 	buf := bytes.NewBuffer(nil)
 	cmd.Stdout = buf

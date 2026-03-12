@@ -27,6 +27,7 @@ RUN --mount=type=cache,target=/var/cache/pacman/pkg/ \
     pacman -Syu --noconfirm --needed \
     tzdata \
     ffmpeg \ 
+    deno \ 
     libvpl vpl-gpu-rt \
     wget \
     python3

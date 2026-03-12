@@ -30,14 +30,12 @@ func (t *Player) PlayPause() {
 		t.Lock()
 		t.paused = true
 		t.Playing.Store(false)
-		log.Trace("t.paused", log.Bool("paused", t.paused))
 		return
 	}
 
 	t.Playing.Store(true)
 	t.paused = false
 	t.Unlock()
-	log.Trace("t.paused", log.Bool("paused", t.paused))
 }
 
 type Player struct {
@@ -171,7 +169,7 @@ func (p *Player) playV2(audio *Audio) error {
 	var err error
 	var pipe io.ReadCloser
 	log.Debug("playV2", log.JSON(audio))
-	ytdlpCMD := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", audio.Link)
+	ytdlpCMD := exec.Command("yt-dlp", "--no-playlist", "-f", "bestaudio", "-o", "-", audio.Link)
 	if audio.Filepath == "" {
 		pipe, err = ytdlpCMD.StdoutPipe()
 	} else {
@@ -235,13 +233,13 @@ func (p *Player) playV2(audio *Audio) error {
 		for _, frame := range page {
 			p.Lock()
 			select {
-			case <-p.VC.Dead:
-				p.Unlock()
-				if audio.Filepath == "" {
-					ytdlpCMD.Process.Kill()
-				}
-				ffmpegCMD.Process.Kill()
-				return nil
+			// case <-p.VC.Dead:
+			// 	p.Unlock()
+			// 	if audio.Filepath == "" {
+			// 		ytdlpCMD.Process.Kill()
+			// 	}
+			// 	ffmpegCMD.Process.Kill()
+			// 	return nil
 
 			case p.VC.OpusSend <- frame:
 			}

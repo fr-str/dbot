@@ -150,13 +150,19 @@ func (d *DBot) handleSound(ctx context.Context, i *discordgo.InteractionCreate) 
 
 func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
-		Link string                       `opt:"link"`
-		Att  *discordgo.MessageAttachment `opt:"file"`
-		Mute bool                         `opt:"mute"`
+		Link   string                       `opt:"link"`
+		Att    *discordgo.MessageAttachment `opt:"file"`
+		Mute   bool                         `opt:"mute"`
+		Format string                       `opt:"format"`
 	}
 	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal options: %w", err)
+	}
+
+	// Default to MP4 if no format specified
+	if opts.Format == "" {
+		opts.Format = "mp4"
 	}
 
 	url := opts.Link
@@ -185,6 +191,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	if err != nil {
 		return fmt.Errorf("dupa")
 	}
+	defer f.Close()
 
 	stat, err := f.Stat()
 	log.Trace("handleToMP4", log.String("file", f.Name()), log.Int("size_KB", stat.Size()>>10))
@@ -192,16 +199,54 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
 
-	if stat.Size() > 10*1_000_000 || opts.Mute {
-		log.Info("failed converting to MP4, trying to convert to discord mp4")
-		msg := "file is too big, reducing bitrate and resolution and running duble pass"
-		d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-			Content: &msg,
-		})
+	var maxsizebytes int64 = 10 * 1_000_000
+	// Always convert if GIF format is requested, or if file is too large or mute is requested for MP4
+	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute {
+		if opts.Format == "gif" {
+			attempts := []ffmpeg.GifSettings{
+				{Height: 320, FPS: 15},
+				{Height: 280, FPS: 12},
+				{Height: 240, FPS: 10},
+				{Height: 180, FPS: 8},
+			}
 
-		f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath, opts.Mute)
-		if err != nil {
-			return fmt.Errorf("failed converting to MP4: %w", err)
+			msg := "converting to GIF..."
+			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: &msg,
+			})
+			for _, settings := range attempts {
+				log.Info("converting to GIF")
+
+				f, err = ffmpeg.ToDiscordGIF(ctx, info.Filepath, settings)
+				if err != nil {
+					return fmt.Errorf("failed converting to GIF: %w", err)
+				}
+				defer f.Close()
+
+				info, err := f.Stat()
+				if err != nil {
+					return err
+				}
+
+				if info.Size() < maxsizebytes {
+					log.Info(fmt.Sprintf("Success! GIF created at %dMB using Height:%d FPS:%d\n", info.Size()/1024/1024, settings.Height, settings.FPS))
+					break
+				}
+
+				log.Info(fmt.Sprintf("File too large (%dMB). Retrying with lower quality...\n", info.Size()/1024/1024))
+			}
+		} else {
+			log.Info("converting to MP4, file too big or mute requested")
+			msg := "file is too big, reducing bitrate and resolution and running double pass"
+			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: &msg,
+			})
+
+			f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath, opts.Mute)
+			if err != nil {
+				return fmt.Errorf("failed converting to MP4: %w", err)
+			}
+			defer f.Close()
 		}
 	}
 
@@ -215,13 +260,23 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		user = &discordgo.Member{}
 	}
 
+	// Determine filename and content type based on format
+	var fileName, contentType string
+	if opts.Format == "gif" {
+		fileName = "dupa.gif"
+		contentType = "image/gif"
+	} else {
+		fileName = "dupa.mp4"
+		contentType = "video/mp4"
+	}
+
 	_, err = d.WebhookExecute(hook.ID, hook.Token, false, &discordgo.WebhookParams{
 		Username:  user.DisplayName(),
 		AvatarURL: i.Member.User.AvatarURL(""),
 		Files: []*discordgo.File{
 			{
-				Name:        "dupa.mp4",
-				ContentType: "video/mp4",
+				Name:        fileName,
+				ContentType: contentType,
 				Reader:      f,
 			},
 		},

@@ -54,6 +54,21 @@ var cmds = []*discordgo.ApplicationCommand{
 				Name:        "mute",
 				Description: "Remove audio from the video",
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "format",
+				Description: "Output format",
+				Choices: []*discordgo.ApplicationCommandOptionChoice{
+					{
+						Name:  "MP4",
+						Value: "mp4",
+					},
+					{
+						Name:  "GIF",
+						Value: "gif",
+					},
+				},
+			},
 		},
 	},
 	{

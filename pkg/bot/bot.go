@@ -84,7 +84,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()
 
-	d.StartScheduler()
+	// d.StartScheduler()
 	d.interfaceLoop()
 
 	err = sess.Open()
@@ -140,7 +140,10 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 	return &d
 }
 
+var ErrVoiceDisabled = errors.New("voice disabled")
+
 func (d *DBot) connectVoice(gID, uID string) error {
+	return ErrVoiceDisabled
 	// skip if we are already connected
 	if d.MusicPlayer.VC != nil {
 		return nil
@@ -151,7 +154,7 @@ func (d *DBot) connectVoice(gID, uID string) error {
 		return fmt.Errorf("failed to find User VC: %w", err)
 	}
 
-	vc, err := d.ChannelVoiceJoin(context.TODO(), gID, channel.ChannelID, false, false)
+	vc, err := d.ChannelVoiceJoin(gID, channel.ChannelID, false, false)
 	if err != nil {
 		return fmt.Errorf("failed to join VC: %w", err)
 	}
@@ -161,10 +164,10 @@ func (d *DBot) connectVoice(gID, uID string) error {
 	d.MusicPlayer.VCID = channel.ChannelID
 	log.Trace("[dupa]", log.Any("channel.ChannelID", channel.ChannelID))
 
-	go func() {
-		<-vc.Dead
-		d.wypierdalajZVC()
-	}()
+	// go func() {
+	// 	<-vc.Dead
+	// 	d.wypierdalajZVC()
+	// }()
 
 	return nil
 }
@@ -281,7 +284,7 @@ func (d *DBot) mapChannel(params store.MapChannelParams) (store.Channel, error) 
 
 func (d *DBot) wypierdalajZVC() error {
 	if d.MusicPlayer.VC != nil {
-		err := d.MusicPlayer.VC.Disconnect(context.TODO())
+		err := d.MusicPlayer.VC.Disconnect()
 		if err != nil {
 			log.Error("failed to disconnect?", log.Err(err))
 			// d.MusicPlayer.ErrChan <- player.Err{
