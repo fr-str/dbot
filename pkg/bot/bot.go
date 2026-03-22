@@ -239,7 +239,7 @@ func (d *DBot) downloadAsMP4(ctx context.Context, url string) (MP4File, error) {
 		return MP4File{}, fmt.Errorf("'%s': %w", url, err)
 	}
 
-	f, err := ffmpeg.ConvertToMP4(ctx, vi.Filepath)
+	f, err := ffmpeg.ConvertToMP4(ctx, vi.Filepath, ffmpeg.Clip{})
 	if err != nil {
 		return MP4File{}, fmt.Errorf("convertToMP4 failed '%s': %w", vi.Filepath, err)
 	}

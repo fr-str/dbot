@@ -69,6 +69,16 @@ var cmds = []*discordgo.ApplicationCommand{
 					},
 				},
 			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "start",
+				Description: "Clip start time (e.g., 1:30 or 90)",
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionString,
+				Name:        "end",
+				Description: "Clip end time (e.g., 2:00 or 120)",
+			},
 		},
 	},
 	{

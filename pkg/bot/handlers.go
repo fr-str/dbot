@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/store"
@@ -13,6 +15,36 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/fr-str/log"
 )
+
+func parseTime(s string) (time.Duration, error) {
+	if strings.Contains(s, ":") {
+		parts := strings.Split(s, ":")
+		var total time.Duration
+		for i, p := range parts {
+			v, err := strconv.Atoi(p)
+			if err != nil {
+				return 0, err
+			}
+			switch len(parts) - i {
+			case 3:
+				total += time.Duration(v) * time.Hour
+			case 2:
+				total += time.Duration(v) * time.Minute
+			case 1:
+				total += time.Duration(v) * time.Second
+			}
+		}
+		return total, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		d, err = time.ParseDuration(s + "s")
+		if err != nil {
+			return 0, err
+		}
+	}
+	return d, nil
+}
 
 func (d *DBot) handlePlay(ctx context.Context, i *discordgo.InteractionCreate) error {
 	var opts struct {
@@ -154,15 +186,33 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		Att    *discordgo.MessageAttachment `opt:"file"`
 		Mute   bool                         `opt:"mute"`
 		Format string                       `opt:"format"`
+		Start  string                       `opt:"start"`
+		End    string                       `opt:"end"`
 	}
 	err := UnmarshalOptions(d.Session, i.ApplicationCommandData().Options, &opts)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal options: %w", err)
 	}
 
-	// Default to MP4 if no format specified
 	if opts.Format == "" {
 		opts.Format = "mp4"
+	}
+
+	clip := ffmpeg.Clip{}
+	if opts.Start != "" {
+		clip.Start, err = parseTime(opts.Start)
+		if err != nil {
+			return fmt.Errorf("invalid start time '%s': %w", opts.Start, err)
+		}
+	}
+	if opts.End != "" {
+		clip.End, err = parseTime(opts.End)
+		if err != nil {
+			return fmt.Errorf("invalid end time '%s': %w", opts.End, err)
+		}
+	}
+	if clip.Start > 0 && clip.End > 0 && clip.End <= clip.Start {
+		return fmt.Errorf("end time must be after start time")
 	}
 
 	url := opts.Link
@@ -201,13 +251,13 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 
 	var maxsizebytes int64 = 10 * 1_000_000
 	// Always convert if GIF format is requested, or if file is too large or mute is requested for MP4
-	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute {
+	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute || clip.Start > 0 || clip.End > 0 {
 		if opts.Format == "gif" {
 			attempts := []ffmpeg.GifSettings{
-				{Height: 320, FPS: 15},
-				{Height: 280, FPS: 12},
-				{Height: 240, FPS: 10},
-				{Height: 180, FPS: 8},
+				{Height: 320, FPS: 15, Clip: clip},
+				{Height: 280, FPS: 12, Clip: clip},
+				{Height: 240, FPS: 10, Clip: clip},
+				{Height: 180, FPS: 8, Clip: clip},
 			}
 
 			msg := "converting to GIF..."
@@ -236,13 +286,22 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 				log.Info(fmt.Sprintf("File too large (%dMB). Retrying with lower quality...\n", info.Size()/1024/1024))
 			}
 		} else {
-			log.Info("converting to MP4, file too big or mute requested")
-			msg := "file is too big, reducing bitrate and resolution and running double pass"
+			var reasons []string
+			if clip.Start > 0 || clip.End > 0 {
+				reasons = append(reasons, "clipping")
+			}
+			if stat.Size() > maxsizebytes {
+				reasons = append(reasons, "file too big")
+			}
+			if opts.Mute {
+				reasons = append(reasons, "mute requested")
+			}
+			msg := "converting MP4: " + strings.Join(reasons, ", ")
 			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: &msg,
 			})
 
-			f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath, opts.Mute)
+			f, err = ffmpeg.ToDiscordMP4(ctx, info.Filepath, opts.Mute, clip)
 			if err != nil {
 				return fmt.Errorf("failed converting to MP4: %w", err)
 			}

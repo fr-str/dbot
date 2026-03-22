@@ -173,7 +173,7 @@ func transcodeToh264(d *DBot, m *discordgo.MessageCreate) {
 			d.MessageReactionAdd(m.ChannelID, m.ID, "bosy:1220157705273086002")
 
 			// transcode and upload
-			f, err := ffmpeg.ConvertToMP4(ctx, meta.Filepath)
+			f, err := ffmpeg.ConvertToMP4(ctx, meta.Filepath, ffmpeg.Clip{})
 			if err != nil {
 				log.Error("transcodeAndReupload", log.Err(err))
 				return

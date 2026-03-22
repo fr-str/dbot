@@ -13,6 +13,7 @@ require (
 	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20241117160931-a1769aeb6b21
 	github.com/pion/opus v0.0.0-20251017233908-d37e25a5784d
 	github.com/pressly/goose/v3 v3.26.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/image v0.34.0
 	golang.org/x/net v0.49.0
@@ -73,6 +74,7 @@ require (
 	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86 // indirect
 	github.com/pingcap/log v1.1.0 // indirect
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20251108085320-32415c86e433 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/riza-io/grpc-go v0.2.0 // indirect
