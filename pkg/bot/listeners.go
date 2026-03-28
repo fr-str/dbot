@@ -105,6 +105,9 @@ func (d *DBot) messageDeleteListener(_ *discordgo.Session, m *discordgo.MessageD
 }
 
 func (d *DBot) messagesListener(_ *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author.Bot {
+		return
+	}
 	info, _, err := BackupAttachment(d, m.Message)
 	if err == nil && info.PossibleDupe != nil {
 		msg, err := d.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Możliwy duplikat https://discord.com/channels/%s/%s/%s",

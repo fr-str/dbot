@@ -237,6 +237,9 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		return fmt.Errorf("failed downloading video: %w", err)
 	}
 
+	// if download succeded backup file
+	go saveVideoInDir(d, url, i.GuildID, "tomp4")
+
 	f, err := os.Open(info.Filepath)
 	if err != nil {
 		return fmt.Errorf("dupa")

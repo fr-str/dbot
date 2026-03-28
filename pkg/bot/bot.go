@@ -84,7 +84,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 	// Listeners must be registered befor we open connection
 	d.RegisterEventListiners()
 
-	// d.StartScheduler()
+	d.StartScheduler()
 	d.interfaceLoop()
 
 	err = sess.Open()
@@ -143,7 +143,7 @@ func Start(ctx context.Context, sess *discordgo.Session, dbstore *store.Queries)
 var ErrVoiceDisabled = errors.New("voice disabled")
 
 func (d *DBot) connectVoice(gID, uID string) error {
-	return ErrVoiceDisabled
+	// return ErrVoiceDisabled
 	// skip if we are already connected
 	if d.MusicPlayer.VC != nil {
 		return nil
@@ -163,11 +163,6 @@ func (d *DBot) connectVoice(gID, uID string) error {
 	d.MusicPlayer.VC = vc
 	d.MusicPlayer.VCID = channel.ChannelID
 	log.Trace("[dupa]", log.Any("channel.ChannelID", channel.ChannelID))
-
-	// go func() {
-	// 	<-vc.Dead
-	// 	d.wypierdalajZVC()
-	// }()
 
 	return nil
 }
@@ -327,7 +322,7 @@ func (d *DBot) play(gID, uID string, url string) error {
 	default:
 		art, err := d.Backup.GetArtefact(d.Ctx, url)
 		if err != nil {
-			go saveInPlayHistory(d, url, gID)
+			go saveVideoInDir(d, url, gID, "play_history")
 		} else {
 			log.Trace("playHistory: artefact already exists")
 			url = art.Path
@@ -339,12 +334,12 @@ func (d *DBot) play(gID, uID string, url string) error {
 	return nil
 }
 
-func saveInPlayHistory(d *DBot, url string, gID string) {
+func saveVideoInDir(d *DBot, url string, gID string, dir string) {
 	log.Trace("saveInPlayHistory", log.String("url", url), log.String("gid", gID))
 	meta := BackupFileParams{
 		OriginUrl:   url,
 		GID:         gID,
-		Dirs:        "play_history",
+		Dirs:        dir,
 		PrependTime: false,
 		File:        nil,
 	}
