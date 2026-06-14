@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"dbot/pkg/fetch"
 	"dbot/pkg/ffmpeg"
 	"dbot/pkg/store"
 
@@ -439,4 +440,53 @@ func (d *DBot) autocompleteForPlayPlaylist(i *discordgo.InteractionCreate) error
 
 func isAutocompleteInteraction(i *discordgo.InteractionCreate) bool {
 	return i.Type == discordgo.InteractionApplicationCommandAutocomplete
+}
+
+func (d *DBot) post(ctx context.Context, i *discordgo.InteractionCreate) error {
+	url, ok := i.ApplicationCommandData().Options[0].Value.(string)
+	if ok {
+		return fmt.Errorf("jak to nie jest string? url: %T", i.ApplicationCommandData().Options[0].Value)
+	}
+
+	files, err := fetch.Fetch(ctx, url)
+	if err != nil {
+		return err
+	}
+
+	channel, err := d.Session.Channel(i.ChannelID)
+	if err != nil {
+		return fmt.Errorf("failed to get channel: %w", err)
+	}
+
+	chID := i.ChannelID
+	isThread := channel.Type == discordgo.ChannelTypeGuildNewsThread ||
+		channel.Type == discordgo.ChannelTypeGuildPublicThread ||
+		channel.Type == discordgo.ChannelTypeGuildPrivateThread
+	if isThread {
+		chID = channel.ParentID
+	}
+
+	hook, err := d.GetWebHook(ctx, chID, DbotHook, "")
+	if err != nil {
+		return fmt.Errorf("getWebhook: %w", err)
+	}
+
+	user, _ := d.GuildMember(i.GuildID, i.Member.User.ID)
+	if user == nil {
+		user = &discordgo.Member{}
+	}
+
+	data := &discordgo.WebhookParams{
+		Username:  user.DisplayName(),
+		AvatarURL: i.Member.User.AvatarURL(""),
+		Files:     files,
+		Flags:     discordgo.MessageFlagsSuppressEmbeds,
+	}
+
+	if isThread {
+		_, err = d.Session.WebhookThreadExecute(hook.ID, hook.Token, false, i.ChannelID, data)
+	} else {
+		_, err = d.WebhookExecute(hook.ID, hook.Token, false, data)
+	}
+	return err
 }

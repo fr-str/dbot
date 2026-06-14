@@ -152,6 +152,16 @@ var cmds = []*discordgo.ApplicationCommand{
 			},
 		},
 	},
+	{
+		Name: "post",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:     discordgo.ApplicationCommandOptionString,
+				Name:     "url",
+				Required: true,
+			},
+		},
+	},
 }
 
 func (d *DBot) ClearCmds(s *discordgo.Session) {
@@ -180,5 +190,6 @@ func (d *DBot) CommandHandlers() map[string]cmdHandler {
 		"to-mp4":          d.handleToMP4,
 		"save-playlist":   d.savePlaylist,
 		"load-playlist":   d.playPlaylistFromDB,
+		"post":            d.post,
 	}
 }
