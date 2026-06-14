@@ -58,7 +58,8 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 	if clip.End > 0 {
 		base = append(base, "-t", fmt.Sprintf("%.2f", clip.End.Seconds()-clip.Start.Seconds()))
 	}
-	base = append(base,
+	base = append(
+		base,
 		"-c:v", "libx264",
 		"-vf", "scale=-2:480",
 		"-preset", "veryslow",
@@ -171,13 +172,13 @@ func parseTime(s string) (time.Duration, error) {
 }
 
 // file is closed when context is canceled
-func ToDiscordGIF(ctx context.Context, file string, settings GifSettings) (*os.File, error) {
+func ToDiscordGIF(ctx context.Context, file string, clip Clip) (*os.File, error) {
 	tmpDir, ok := ctx.Value(config.DirKey).(string)
 	if !ok || len(tmpDir) == 0 {
 		return nil, errors.New("nie dałeś temp dira debilu")
 	}
 
-	gifPath := filepath.Join(tmpDir, "discord.dupa.gif")
+	gifPath := filepath.Join(tmpDir, "discord.dupa.webp")
 	info, err := Probe(file)
 	if err != nil {
 		return nil, err
@@ -186,28 +187,28 @@ func ToDiscordGIF(ctx context.Context, file string, settings GifSettings) (*os.F
 	log.Trace("ToDiscordGIF", log.String("dir", tmpDir))
 
 	duration := info.Format.Duration.Seconds()
-	if settings.Clip.End > 0 {
-		duration = settings.Clip.End.Seconds()
+	if clip.End > 0 {
+		duration = clip.End.Seconds()
 	}
-	if settings.Clip.Start > 0 {
-		duration -= settings.Clip.Start.Seconds()
+	if clip.Start > 0 {
+		duration -= clip.Start.Seconds()
 	}
-
-	filter := fmt.Sprintf(
-		"scale=-2:%d,fps=%d,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle",
-		settings.Height, settings.FPS,
-	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg")
-	cmd.Args = append(cmd.Args,
-		"-hide_banner")
-	if settings.Clip.Start > 0 {
-		cmd.Args = append(cmd.Args, "-ss", settings.Clip.Start.String())
+	cmd.Args = append(cmd.Args, "-hide_banner")
+	if clip.Start > 0 {
+		cmd.Args = append(cmd.Args, "-ss", clip.Start.String())
 	}
-	cmd.Args = append(cmd.Args,
+	cmd.Args = append(
+		cmd.Args,
 		"-i", file,
 		"-t", fmt.Sprintf("%.2f", duration),
-		"-vf", filter,
+		"-vcodec", "libwebp",
+		"-filter:v", "fps=24,scale=480:-1:flags=lanczos",
+		"-lossless", "0", // Use lossy compression for video source efficiency
+		"-q:v", "75", // Quality factor (75-80 is the sweet spot for webp)
+		"-loop", "0", // Infinite loop play state
+		"-an", // Strip audio track
 		"-y",
 		gifPath,
 	)
@@ -275,7 +276,8 @@ func ConvertToMP4(ctx context.Context, file string, clip Clip) (*os.File, error)
 	if clip.End > 0 {
 		cmd.Args = append(cmd.Args, "-t", fmt.Sprintf("%.2f", clip.End.Seconds()-clip.Start.Seconds()))
 	}
-	cmd.Args = append(cmd.Args,
+	cmd.Args = append(
+		cmd.Args,
 		"-c:v", "h264_qsv",
 		"-global_quality", "23",
 		"-preset", "veryslow",

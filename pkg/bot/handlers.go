@@ -256,37 +256,25 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	// Always convert if GIF format is requested, or if file is too large or mute is requested for MP4
 	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute || clip.Start > 0 || clip.End > 0 {
 		if opts.Format == "gif" {
-			attempts := []ffmpeg.GifSettings{
-				{Height: 320, FPS: 15, Clip: clip},
-				{Height: 280, FPS: 12, Clip: clip},
-				{Height: 240, FPS: 10, Clip: clip},
-				{Height: 180, FPS: 8, Clip: clip},
+			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: new("converting to GIF..."),
+			})
+
+			log.Info("converting to GIF")
+
+			f, err = ffmpeg.ToDiscordGIF(ctx, info.Filepath, clip)
+			if err != nil {
+				return fmt.Errorf("failed converting to GIF: %w", err)
+			}
+			defer f.Close()
+
+			info, err := f.Stat()
+			if err != nil {
+				return err
 			}
 
-			msg := "converting to GIF..."
-			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: &msg,
-			})
-			for _, settings := range attempts {
-				log.Info("converting to GIF")
-
-				f, err = ffmpeg.ToDiscordGIF(ctx, info.Filepath, settings)
-				if err != nil {
-					return fmt.Errorf("failed converting to GIF: %w", err)
-				}
-				defer f.Close()
-
-				info, err := f.Stat()
-				if err != nil {
-					return err
-				}
-
-				if info.Size() < maxsizebytes {
-					log.Info(fmt.Sprintf("Success! GIF created at %dMB using Height:%d FPS:%d\n", info.Size()/1024/1024, settings.Height, settings.FPS))
-					break
-				}
-
-				log.Info(fmt.Sprintf("File too large (%dMB). Retrying with lower quality...\n", info.Size()/1024/1024))
+			if info.Size() >= maxsizebytes {
+				return errors.New("failed converting to GIF: file to big")
 			}
 		} else {
 			var reasons []string
@@ -338,7 +326,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	// Determine filename and content type based on format
 	var fileName, contentType string
 	if opts.Format == "gif" {
-		fileName = "dupa.gif"
+		fileName = "dupa.webp"
 		contentType = "image/gif"
 	} else {
 		fileName = "dupa.mp4"
