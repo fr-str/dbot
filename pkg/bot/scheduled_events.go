@@ -72,15 +72,16 @@ func (d *DBot) findVoiceChannel() error {
 		return errors.New("dupa")
 	}
 
-	for _, v := range g.VoiceStates {
-		vc, err := d.ChannelVoiceJoin(g.ID, v.ChannelID, false, false)
-		if err != nil {
-			return err
-		}
-
-		d.MusicPlayer.VC = vc
-		d.MusicPlayer.VCID = v.ChannelID
-		break
+	if len(g.VoiceStates) == 0 {
+		return nil
 	}
+
+	channelID := g.VoiceStates[0].ChannelID
+	vc, err := d.ChannelVoiceJoin(g.ID, channelID, false, false)
+	if err != nil {
+		return err
+	}
+	d.MusicPlayer.VC = vc
+	d.MusicPlayer.VCID = channelID
 	return nil
 }

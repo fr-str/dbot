@@ -374,7 +374,8 @@ func (d *DBot) playFromYTPlaylist(url string) error {
 	log.Trace("adding tracks from playlist", log.Int("len", len(info.Entries)))
 	for i := range info.Entries {
 		if info.Entries[i].Duration == nil {
-			log.Trace("skipping due to null duration, probably deleted vid",
+			log.Trace(
+				"skipping due to null duration, probably deleted vid",
 				log.String("title", info.Entries[i].Title),
 				log.String("url", info.Entries[i].URL),
 			)
@@ -416,7 +417,8 @@ func (d *DBot) savePlaylistFromYT(name, url, gID string) error {
 
 	for i := range info.Entries {
 		if info.Entries[i].Duration == nil {
-			log.Trace("skipping due to null duration, probably deleted vid",
+			log.Trace(
+				"skipping due to null duration, probably deleted vid",
 				log.String("title", info.Entries[i].Title),
 				log.String("url", info.Entries[i].URL),
 			)

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Create a stage for building the application.
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS build
 WORKDIR /src
 
@@ -11,7 +11,7 @@ WORKDIR /src
 # Cache dependencies. GOMODCACHE=/go/pkg/mod
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=bind,source=go.mod,target=go.mod \
-    --mount=type=bind,source=go.sum,target=go.sum \ 
+    --mount=type=bind,source=go.sum,target=go.sum \
     go mod download
 
 # Build. GOCACHE=/root/.cache/go-build
@@ -26,8 +26,8 @@ FROM archlinux:latest AS final
 RUN --mount=type=cache,target=/var/cache/pacman/pkg/ \
     pacman -Syu --noconfirm --needed \
     tzdata \
-    ffmpeg \ 
-    deno \ 
+    ffmpeg \
+    deno \
     libvpl vpl-gpu-rt \
     wget \
     python3

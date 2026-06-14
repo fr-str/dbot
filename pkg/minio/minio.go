@@ -66,16 +66,16 @@ func (m *Minio) createDefaultBucket(ctx context.Context) error {
 // will create same structure in config.MINIO_DBOT_BUCKET
 func (m Minio) CreateFolderStructure(ctx context.Context, name string) error {
 	log.Trace("CreateFolderStructure", log.String("name", name))
-	currentPath := ""
-	for _, folder := range strings.Split(name, "/") {
-		currentPath += folder + "/"
+	var currentPath strings.Builder
+	for folder := range strings.SplitSeq(name, "/") {
+		currentPath.WriteString(folder + "/")
 		// _,err := m.StatObject(ctx,config.MINIO_DBOT_BUCKET_NAME,currentPath,minio.StatObjectOptions{})
 		// if err == nil {
 		// 	continue
 		// }
 
-		log.Trace("CreateFolderStructure", log.Any("currentPath", currentPath))
-		_, err := m.PutObject(ctx, config.MINIO_DBOT_BUCKET_NAME, currentPath, nil, 0, minio.PutObjectOptions{})
+		log.Trace("CreateFolderStructure", log.Any("currentPath", currentPath.String()))
+		_, err := m.PutObject(ctx, config.MINIO_DBOT_BUCKET_NAME, currentPath.String(), nil, 0, minio.PutObjectOptions{})
 		if err != nil {
 			return err
 		}
