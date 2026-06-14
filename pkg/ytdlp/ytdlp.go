@@ -46,6 +46,7 @@ func init() {
 			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 			"--print", printAfterMove,
 			"-x",
+			"--no-playlist",
 			"--audio-format",
 			"opus",
 		}
@@ -53,6 +54,7 @@ func init() {
 			"--no-simulate",
 			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 			"--print", printAfterMove,
+			"--no-playlist",
 			"-f",
 			"bestvideo+bestaudio/best",
 		}
@@ -60,6 +62,7 @@ func init() {
 			"--no-simulate",
 			"--cookies", filepath.Join(must(os.Getwd()), "prod-data", config.COOKIE_PATH),
 			"--print", printAfterMove,
+			"--no-playlist",
 			"-f",
 			`bv*[filesize<8M]+ba[filesize<2M]/b[filesize<10M]/bv*[height<=720]+ba/b[height<=720]/b`,
 			"--format-sort", "codec:av01,+fps:30",

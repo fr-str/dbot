@@ -77,7 +77,7 @@ func (d *DBot) handlePlay(ctx context.Context, i *discordgo.InteractionCreate) e
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: fmt.Sprintf("added %s", url),
-			Flags:   discordgo.MessageFlagsSuppressEmbeds,
+			// Flags:   discordgo.MessageFlagsSuppressEmbeds,
 		},
 	})
 	return err

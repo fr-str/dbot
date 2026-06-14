@@ -77,6 +77,34 @@ func TestParseTime(t *testing.T) {
 	})
 }
 
+func TestFormatDurationForFFmpeg(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		t.Run("parses seconds only", func(t *testing.T) {
+			d := 90 * time.Second
+			s := formatDurationForFFmpeg(d)
+			assert.Equal(t, "1:30", s)
+		})
+
+		t.Run("parses minutes and seconds", func(t *testing.T) {
+			d := 3*time.Minute + 35*time.Second
+			s := formatDurationForFFmpeg(d)
+			assert.Equal(t, "3:35", s)
+		})
+
+		t.Run("parses hours", func(t *testing.T) {
+			d := 1*time.Hour + 30*time.Minute + 45*time.Second
+			s := formatDurationForFFmpeg(d)
+			assert.Equal(t, "1:30:45", s)
+		})
+
+		t.Run("parses zero", func(t *testing.T) {
+			d := time.Duration(0)
+			s := formatDurationForFFmpeg(d)
+			assert.Equal(t, "0:00", s)
+		})
+	})
+}
+
 func TestClip(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		t.Run("clip with start and end", func(t *testing.T) {

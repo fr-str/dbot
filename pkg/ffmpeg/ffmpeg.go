@@ -52,7 +52,7 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 		"-hide_banner",
 	}
 	if clip.Start > 0 {
-		base = append(base, "-ss", clip.Start.String())
+		base = append(base, "-ss", formatDurationForFFmpeg(clip.Start))
 	}
 	base = append(base, "-i", file)
 	if clip.End > 0 {
@@ -126,6 +126,18 @@ type GifSettings struct {
 	Height int
 	FPS    int
 	Clip   Clip
+}
+
+func formatDurationForFFmpeg(d time.Duration) string {
+	totalSecs := int(d.Seconds())
+	hours := totalSecs / 3600
+	minutes := (totalSecs % 3600) / 60
+	seconds := totalSecs % 60
+
+	if hours > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", hours, minutes, seconds)
+	}
+	return fmt.Sprintf("%d:%02d", minutes, seconds)
 }
 
 func parseTime(s string) (time.Duration, error) {
