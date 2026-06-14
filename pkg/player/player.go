@@ -179,7 +179,8 @@ func (p *Player) playV2(audio *Audio) error {
 		return err
 	}
 
-	ffmpegCMD := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
+	ffmpegCMD := exec.Command(
+		"ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", "-", // audio.Filepath,
 		"-ar", "48000",
 		"-ac", "2",
@@ -263,7 +264,8 @@ func (p *Player) playSound(audio *Audio) error {
 	p.Playing.Store(true)
 	defer p.Playing.Store(false)
 	log.Debug("playSound", log.JSON(audio))
-	cmd := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error",
+	cmd := exec.Command(
+		"ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", audio.Filepath,
 		"-ar", "48000",
 		"-ac", "2",

@@ -80,7 +80,6 @@ func (d *DBot) findVoiceChannel() error {
 
 		d.MusicPlayer.VC = vc
 		d.MusicPlayer.VCID = v.ChannelID
-		break
 	}
 	return nil
 }

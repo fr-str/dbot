@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	dbot "dbot/pkg/bot"
 
@@ -25,12 +26,13 @@ func StartServer(d *dbot.DBot) {
 		}
 		log.Trace("links", log.JSON(links))
 
-		msg := "New	links:\n"
+		var msg strings.Builder
+		msg.WriteString("New	links:\n")
 		for k, v := range links {
-			msg += fmt.Sprintf("[URL](%s) Points: %s\n", k, v)
+			msg.WriteString(fmt.Sprintf("[URL](%s) Points: %s\n", k, v))
 		}
 
-		_, err = d.ChannelMessageSend("983810486627876924", msg)
+		_, err = d.ChannelMessageSend("983810486627876924", msg.String())
 		if err != nil {
 			log.Error(err.Error())
 		}

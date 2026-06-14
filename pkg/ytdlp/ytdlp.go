@@ -2,6 +2,7 @@ package ytdlp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"dbot/pkg/config"
 
 	"github.com/fr-str/log"
-	"golang.org/x/net/context"
 	"golang.org/x/net/html"
 )
 
