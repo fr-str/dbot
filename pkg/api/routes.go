@@ -29,7 +29,7 @@ func StartServer(d *dbot.DBot) {
 		var msg strings.Builder
 		msg.WriteString("New	links:\n")
 		for k, v := range links {
-			msg.WriteString(fmt.Sprintf("[URL](%s) Points: %s\n", k, v))
+			fmt.Fprintf(&msg, "[URL](%s) Points: %s\n", k, v)
 		}
 
 		_, err = d.ChannelMessageSend("983810486627876924", msg.String())
