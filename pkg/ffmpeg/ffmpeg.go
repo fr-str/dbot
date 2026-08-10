@@ -65,6 +65,7 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 		"-preset", "veryslow",
 		"-r", "24",
 		"-b:v", fmt.Sprintf("%dK", bitrate),
+		"-passlogfile", filepath.Join(tmpDir, "discord-pass"),
 	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg")
