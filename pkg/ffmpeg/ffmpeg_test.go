@@ -194,6 +194,20 @@ func TestFirstVideoStream(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestHasHEVCVideo(t *testing.T) {
+	assert.True(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "video", CodecName: "h264"},
+		{CodecType: "video", CodecName: "hevc"},
+	}}))
+	assert.True(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "video", CodecName: "H265"},
+	}}))
+	assert.False(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "audio", CodecName: "hevc"},
+		{CodecType: "video", CodecName: "h264"},
+	}}))
+}
+
 func TestDiscordVideoBudgetBPS(t *testing.T) {
 	withAudio, err := discordVideoBudgetBPS(1.5, false)
 	require.NoError(t, err)
