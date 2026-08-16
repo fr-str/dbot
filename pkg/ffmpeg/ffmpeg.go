@@ -21,10 +21,10 @@ import (
 var ErrFfmpegError = errors.New("ffmpeg error")
 
 const (
-	discordMaxFileSizeBytes = 10 * 1024 * 1024
+	discordMaxFileSizeBytes = 20 * 1024 * 1024
 	discordOutputFPS        = 24
 	discordAudioBitrateBPS  = 48_000
-	discordSafetyMargin     = 0.95
+	discordSafetyMargin     = 0.97
 	discordTargetBPP        = 0.06
 )
 
