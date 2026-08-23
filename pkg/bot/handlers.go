@@ -253,8 +253,14 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	}
 
 	var maxsizebytes int64 = 10 * 1_000_000
-	// Always convert if GIF format is requested, or if file is too large or mute is requested for MP4
-	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute || clip.Start > 0 || clip.End > 0 {
+	videoInfo, err := ffmpeg.Probe(info.Filepath)
+	if err != nil {
+		return fmt.Errorf("probe downloaded video: %w", err)
+	}
+	hasHEVCVideo := ffmpeg.HasHEVCVideo(videoInfo)
+
+	// Always convert GIFs and MP4s that exceed the upload limit, need edits, or use HEVC.
+	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute || clip.Start > 0 || clip.End > 0 || hasHEVCVideo {
 		if opts.Format == "gif" {
 			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: new("converting to GIF..."),
@@ -286,6 +292,9 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 			}
 			if opts.Mute {
 				reasons = append(reasons, "mute requested")
+			}
+			if hasHEVCVideo {
+				reasons = append(reasons, "HEVC video codec")
 			}
 			msg := "converting MP4: " + strings.Join(reasons, ", ")
 			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{

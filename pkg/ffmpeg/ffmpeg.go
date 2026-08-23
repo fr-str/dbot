@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,21 @@ import (
 )
 
 var ErrFfmpegError = errors.New("ffmpeg error")
+
+const (
+	discordMaxFileSizeBytes = 20 * 1024 * 1024
+	discordOutputFPS        = 24
+	discordAudioBitrateBPS  = 48_000
+	discordSafetyMargin     = 0.97
+	discordTargetBPP        = 0.06
+)
+
+type videoSettings struct {
+	BitrateKbps int
+	Width       int
+	Height      int
+	Scale       bool
+}
 
 // file is closed when context is canceled
 func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.File, error) {
@@ -43,11 +59,23 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 	if duration <= 0 {
 		return nil, errors.New("invalid clip duration")
 	}
-	bitrate := 10 * 1_000_000 * 8
-	bitrate -= 48 * 1_000 * int(duration)
-	bitrate = bitrate / int(duration)
-	bitrate = bitrate / 1000
-	log.Trace("bitrate", log.Int("bitrate", bitrate))
+	video, err := firstVideoStream(info)
+	if err != nil {
+		return nil, err
+	}
+
+	videoBudgetBPS, err := discordVideoBudgetBPS(duration, mute)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := selectDiscordVideoSettings(video, videoBudgetBPS)
+	if err != nil {
+		return nil, err
+	}
+	log.Trace("ToDiscordMP4 settings",
+		log.Int("bitrateKbps", settings.BitrateKbps),
+		log.Int("width", settings.Width),
+		log.Int("height", settings.Height))
 	base := []string{
 		"-hide_banner",
 	}
@@ -58,13 +86,16 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 	if clip.End > 0 {
 		base = append(base, "-t", fmt.Sprintf("%.2f", clip.End.Seconds()-clip.Start.Seconds()))
 	}
+	base = append(base, "-c:v", "libx264")
+	if settings.Scale {
+		base = append(base, "-vf", fmt.Sprintf("scale=%d:%d", settings.Width, settings.Height))
+	}
 	base = append(
 		base,
-		"-c:v", "libx264",
-		"-vf", "scale=-2:480",
 		"-preset", "veryslow",
-		"-r", "24",
-		"-b:v", fmt.Sprintf("%dK", bitrate),
+		"-r", fmt.Sprintf("%d", discordOutputFPS),
+		"-b:v", fmt.Sprintf("%dK", settings.BitrateKbps),
+		"-passlogfile", filepath.Join(tmpDir, "discord-pass"),
 	)
 
 	cmd := exec.CommandContext(ctx, "ffmpeg")
@@ -106,6 +137,14 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 		return nil, err
 	}
 	stat, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if stat.Size() >= discordMaxFileSizeBytes {
+		f.Close()
+		return nil, fmt.Errorf("Discord MP4 is too large: %d bytes", stat.Size())
+	}
 	log.Trace("convertToDiscordMP4",
 		log.String("mp4Path", mp4Path),
 		log.String("file", f.Name()), log.Int("size", stat.Size()))
@@ -116,6 +155,77 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 	}()
 
 	return f, nil
+}
+
+func firstVideoStream(info Streams) (Stream, error) {
+	for _, stream := range info.Streams {
+		if stream.CodecType == "video" && stream.Width > 0 && stream.Height > 0 {
+			return stream, nil
+		}
+	}
+
+	return Stream{}, errors.New("input does not contain a video stream with valid dimensions")
+}
+
+func discordVideoBudgetBPS(duration float64, mute bool) (float64, error) {
+	audioBitrateBPS := 0
+	if !mute {
+		audioBitrateBPS = discordAudioBitrateBPS
+	}
+
+	totalBudgetBPS := float64(discordMaxFileSizeBytes*8) * discordSafetyMargin / duration
+	videoBudgetBPS := totalBudgetBPS - float64(audioBitrateBPS)
+	if videoBudgetBPS < 1_000 {
+		return 0, errors.New("clip is too long for the Discord size limit")
+	}
+
+	return videoBudgetBPS, nil
+}
+
+func selectDiscordVideoSettings(video Stream, videoBudgetBPS float64) (videoSettings, error) {
+	if video.Width <= 0 || video.Height <= 0 {
+		return videoSettings{}, errors.New("video stream has invalid dimensions")
+	}
+
+	bitrateKbps := int(math.Floor(videoBudgetBPS / 1_000))
+	if bitrateKbps < 1 {
+		return videoSettings{}, errors.New("video bitrate budget is too small")
+	}
+
+	for _, maxShortSide := range []int{720, 480, 360, 240} {
+		width, height := scaledDimensions(video.Width, video.Height, maxShortSide)
+		requiredBPS := float64(width*height*discordOutputFPS) * discordTargetBPP
+		if videoBudgetBPS >= requiredBPS {
+			return videoSettings{
+				BitrateKbps: bitrateKbps,
+				Width:       width,
+				Height:      height,
+				Scale:       width != video.Width || height != video.Height,
+			}, nil
+		}
+	}
+
+	width, height := scaledDimensions(video.Width, video.Height, 240)
+	return videoSettings{
+		BitrateKbps: bitrateKbps,
+		Width:       width,
+		Height:      height,
+		Scale:       width != video.Width || height != video.Height,
+	}, nil
+}
+
+func scaledDimensions(width, height, maxShortSide int) (int, int) {
+	shortSide := min(width, height)
+	if shortSide <= maxShortSide {
+		return width, height
+	}
+
+	scale := float64(maxShortSide) / float64(shortSide)
+	return evenDimension(float64(width) * scale), evenDimension(float64(height) * scale)
+}
+
+func evenDimension(value float64) int {
+	return max(int(math.Round(value/2))*2, 2)
 }
 
 type Clip struct {

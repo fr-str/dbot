@@ -177,3 +177,71 @@ func TestGifSettings(t *testing.T) {
 		})
 	})
 }
+
+func TestFirstVideoStream(t *testing.T) {
+	stream, err := firstVideoStream(Streams{
+		Streams: []Stream{
+			{CodecType: "audio"},
+			{CodecType: "video", Width: 1280, Height: 720},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1280, stream.Width)
+	assert.Equal(t, 720, stream.Height)
+
+	_, err = firstVideoStream(Streams{Streams: []Stream{{CodecType: "audio"}}})
+	assert.Error(t, err)
+}
+
+func TestHasHEVCVideo(t *testing.T) {
+	assert.True(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "video", CodecName: "h264"},
+		{CodecType: "video", CodecName: "hevc"},
+	}}))
+	assert.True(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "video", CodecName: "H265"},
+	}}))
+	assert.False(t, HasHEVCVideo(Streams{Streams: []Stream{
+		{CodecType: "audio", CodecName: "hevc"},
+		{CodecType: "video", CodecName: "h264"},
+	}}))
+}
+
+func TestDiscordVideoBudgetBPS(t *testing.T) {
+	withAudio, err := discordVideoBudgetBPS(1.5, false)
+	require.NoError(t, err)
+
+	withoutAudio, err := discordVideoBudgetBPS(1.5, true)
+	require.NoError(t, err)
+	assert.Equal(t, float64(discordAudioBitrateBPS), withoutAudio-withAudio)
+
+	_, err = discordVideoBudgetBPS(100_000, false)
+	assert.Error(t, err)
+}
+
+func TestSelectDiscordVideoSettings(t *testing.T) {
+	video := Stream{CodecType: "video", Width: 1280, Height: 720}
+
+	settings, err := selectDiscordVideoSettings(video, 1_500_000)
+	require.NoError(t, err)
+	assert.Equal(t, 1280, settings.Width)
+	assert.Equal(t, 720, settings.Height)
+	assert.False(t, settings.Scale)
+
+	settings, err = selectDiscordVideoSettings(video, 1_000_000)
+	require.NoError(t, err)
+	assert.Equal(t, 854, settings.Width)
+	assert.Equal(t, 480, settings.Height)
+	assert.True(t, settings.Scale)
+
+	settings, err = selectDiscordVideoSettings(Stream{CodecType: "video", Width: 720, Height: 1280}, 1_000_000)
+	require.NoError(t, err)
+	assert.Equal(t, 480, settings.Width)
+	assert.Equal(t, 854, settings.Height)
+
+	settings, err = selectDiscordVideoSettings(video, 300_000)
+	require.NoError(t, err)
+	assert.Equal(t, 426, settings.Width)
+	assert.Equal(t, 240, settings.Height)
+}

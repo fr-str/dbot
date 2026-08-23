@@ -65,7 +65,7 @@ func init() {
 			"--no-playlist",
 			"-f",
 			`bv*[filesize<8M]+ba[filesize<2M]/b[filesize<10M]/bv*[height<=720]+ba/b[height<=720]/b`,
-			"--format-sort", "codec:av01,+fps:30",
+			"--format-sort", "res,fps~30,codec:av01",
 		}
 
 		playlistInfoCMD = []string{

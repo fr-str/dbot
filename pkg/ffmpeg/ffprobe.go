@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/fr-str/log"
@@ -119,4 +120,18 @@ func Probe(path string) (Streams, error) {
 	}
 
 	return meta, nil
+}
+
+func HasHEVCVideo(info Streams) bool {
+	for _, stream := range info.Streams {
+		if stream.CodecType != "video" {
+			continue
+		}
+
+		if strings.EqualFold(stream.CodecName, "hevc") || strings.EqualFold(stream.CodecName, "h265") {
+			return true
+		}
+	}
+
+	return false
 }
