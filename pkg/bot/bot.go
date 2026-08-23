@@ -313,8 +313,8 @@ func (d *DBot) play(gID, uID string, url string) error {
 			return fmt.Errorf("failed searching: %w", err)
 		}
 
-	case strings.Contains(url, "/playlist"):
-		err := d.playFromYTPlaylist(url)
+	case strings.Contains(url, "/playlist") || strings.Contains(url,"&list="):
+		err := d.playFromYTPlaylist(url,gID)
 		if err != nil {
 			return fmt.Errorf("failed load playlist: %w", err)
 		}
@@ -365,7 +365,7 @@ func (d *DBot) searchAndPlay(url string) error {
 	return nil
 }
 
-func (d *DBot) playFromYTPlaylist(url string) error {
+func (d *DBot) playFromYTPlaylist(url string,gID string) error {
 	info, err := d.PlaylistInfo(url)
 	if err != nil {
 		return fmt.Errorf("failed getting playlist info: %w", err)
@@ -382,12 +382,12 @@ func (d *DBot) playFromYTPlaylist(url string) error {
 			continue
 		}
 		u := info.Entries[i].URL
-		// art, err := d.Backup.GetArtefact(d.Ctx, url)
-		// if err != nil {
-		// 	go saveInPlayHistory(d, url, gID)
-		// } else {
-		// 	u = art.Path
-		// }
+		art, err := d.Backup.GetArtefact(d.Ctx, url)
+		if err != nil {
+			go saveVideoInDir(d, url, gID, "play_history")
+		} else {
+			u = art.Path
+		}
 		d.MusicPlayer.Add(u)
 	}
 
