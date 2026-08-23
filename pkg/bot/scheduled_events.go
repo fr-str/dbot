@@ -27,7 +27,7 @@ func (d *DBot) StartScheduler() {
 	log.Trace(j.Name())
 
 	j, err = s.NewJob(
-		gocron.CronJob("0 16-23/1 * * 3", false),
+		gocron.CronJob("0 16,18,20,22,0 * * 3", false),
 		gocron.NewTask(d.środowaNoc),
 	)
 	if err != nil {
