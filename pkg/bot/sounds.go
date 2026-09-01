@@ -90,33 +90,21 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 	}
 	var fullSound store.Sound
 	var fullRatio int
-	var partialSound store.Sound
-	var partialRatio int
 	for _, sound := range sounds {
 		for _, alias := range sound.Aliases {
-			ratio := fuzzy.Ratio(alias, name)
+			ratio := fuzzy.WRatio(alias, name)
+			lev := fuzzy.EditDistance(alias,name)
+			ratio += lev
 			if ratio > 80 && ratio > fullRatio {
 				log.Debug("ratio fuzzy match", log.Int("ratio", ratio), log.String("alias", alias))
 				fullRatio = ratio
 				fullSound = sound
 			}
-			ratio = fuzzy.PartialRatio(alias, name)
-			if ratio > 80 && ratio > partialRatio {
-				log.Debug("partial ratio fuzzy match", log.Int("ratio", ratio), log.String("alias", alias))
-				partialRatio = ratio
-				partialSound = sound
-			}
 		}
 	}
 
-	// if sound found return it
 	if fullRatio >= 80 {
 		return append(ss, fullSound), nil
-	}
-
-	// if sound not found return partial match
-	if partialRatio >= 80 {
-		return append(ss, partialSound), nil
 	}
 
 	return ss, ErrSoundNotFound
