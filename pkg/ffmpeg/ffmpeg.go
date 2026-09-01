@@ -21,7 +21,7 @@ import (
 var ErrFfmpegError = errors.New("ffmpeg error")
 
 const (
-	discordMaxFileSizeBytes = 20 * 1024 * 1024
+	DiscordMaxFileSizeBytes = 10<<20
 	discordOutputFPS        = 24
 	discordAudioBitrateBPS  = 48_000
 	discordSafetyMargin     = 0.97
@@ -141,7 +141,7 @@ func ToDiscordMP4(ctx context.Context, file string, mute bool, clip Clip) (*os.F
 		f.Close()
 		return nil, err
 	}
-	if stat.Size() >= discordMaxFileSizeBytes {
+	if stat.Size() >= DiscordMaxFileSizeBytes {
 		f.Close()
 		return nil, fmt.Errorf("Discord MP4 is too large: %d bytes", stat.Size())
 	}
@@ -173,7 +173,7 @@ func discordVideoBudgetBPS(duration float64, mute bool) (float64, error) {
 		audioBitrateBPS = discordAudioBitrateBPS
 	}
 
-	totalBudgetBPS := float64(discordMaxFileSizeBytes*8) * discordSafetyMargin / duration
+	totalBudgetBPS := float64(DiscordMaxFileSizeBytes*8) * discordSafetyMargin / duration
 	videoBudgetBPS := totalBudgetBPS - float64(audioBitrateBPS)
 	if videoBudgetBPS < 1_000 {
 		return 0, errors.New("clip is too long for the Discord size limit")

@@ -252,7 +252,6 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 		return fmt.Errorf("failed getting file size: %w", err)
 	}
 
-	var maxsizebytes int64 = 10 * 1_000_000
 	videoInfo, err := ffmpeg.Probe(info.Filepath)
 	if err != nil {
 		return fmt.Errorf("probe downloaded video: %w", err)
@@ -260,7 +259,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 	hasHEVCVideo := ffmpeg.HasHEVCVideo(videoInfo)
 
 	// Always convert GIFs and MP4s that exceed the upload limit, need edits, or use HEVC.
-	if opts.Format == "gif" || stat.Size() > maxsizebytes || opts.Mute || clip.Start > 0 || clip.End > 0 || hasHEVCVideo {
+	if opts.Format == "gif" || stat.Size() > ffmpeg.DiscordMaxFileSizeBytes || opts.Mute || clip.Start > 0 || clip.End > 0 || hasHEVCVideo {
 		if opts.Format == "gif" {
 			d.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Content: new("converting to GIF..."),
@@ -279,7 +278,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 				return err
 			}
 
-			if info.Size() >= maxsizebytes {
+			if info.Size() >= ffmpeg.DiscordMaxFileSizeBytes {
 				return errors.New("failed converting to GIF: file to big")
 			}
 		} else {
@@ -287,7 +286,7 @@ func (d *DBot) handleToMP4(ctx context.Context, i *discordgo.InteractionCreate) 
 			if clip.Start > 0 || clip.End > 0 {
 				reasons = append(reasons, "clipping")
 			}
-			if stat.Size() > maxsizebytes {
+			if stat.Size() > ffmpeg.DiscordMaxFileSizeBytes {
 				reasons = append(reasons, "file too big")
 			}
 			if opts.Mute {
