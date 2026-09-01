@@ -62,6 +62,12 @@ var srq = soundsRandQ{
 	s: map[string][]store.Sound{},
 }
 
+const (
+	minimumFuzzySoundNameLength = 4
+	minimumFuzzySoundScore      = 85
+	minimumFuzzySoundScoreGap   = 8
+)
+
 func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error) {
 	srq.refresh(db, gid)
 	var ss []store.Sound
@@ -88,36 +94,80 @@ func findSound(db *store.Queries, name string, gid string) ([]store.Sound, error
 	if err != nil {
 		log.Error("db select failed: %w", err)
 	}
-	var fullSound store.Sound
-	var fullRatio int
-	var partialSound store.Sound
-	var partialRatio int
+
+	sound, found := matchSound(sounds, name)
+	if found {
+		return append(ss, sound), nil
+	}
+
+	return ss, ErrSoundNotFound
+}
+
+func matchSound(sounds []store.Sound, name string) (store.Sound, bool) {
 	for _, sound := range sounds {
 		for _, alias := range sound.Aliases {
-			ratio := fuzzy.Ratio(alias, name)
-			if ratio > 80 && ratio > fullRatio {
-				log.Debug("ratio fuzzy match", log.Int("ratio", ratio), log.String("alias", alias))
-				fullRatio = ratio
-				fullSound = sound
-			}
-			ratio = fuzzy.PartialRatio(alias, name)
-			if ratio > 80 && ratio > partialRatio {
-				log.Debug("partial ratio fuzzy match", log.Int("ratio", ratio), log.String("alias", alias))
-				partialRatio = ratio
-				partialSound = sound
+			if normalize(alias) == name {
+				return sound, true
 			}
 		}
 	}
 
-	// if sound found return it
-	if fullRatio >= 80 {
-		return append(ss, fullSound), nil
+	prefixSoundIndex := -1
+	for soundIndex, sound := range sounds {
+		for _, alias := range sound.Aliases {
+			alias = normalize(alias)
+			if len(name) >= 3 && strings.HasPrefix(alias, name) {
+				if prefixSoundIndex != -1 {
+					return fuzzyMatchSound(sounds, name)
+				}
+				prefixSoundIndex = soundIndex
+				break
+			}
+		}
+	}
+	if prefixSoundIndex != -1 {
+		return sounds[prefixSoundIndex], true
 	}
 
-	// if sound not found return partial match
-	if partialRatio >= 80 {
-		return append(ss, partialSound), nil
+	return fuzzyMatchSound(sounds, name)
+}
+
+func fuzzyMatchSound(sounds []store.Sound, name string) (store.Sound, bool) {
+	if len(name) < minimumFuzzySoundNameLength {
+		return store.Sound{}, false
 	}
 
-	return ss, ErrSoundNotFound
+	bestSoundIndex := -1
+	bestScore := 0
+	secondBestScore := 0
+	for soundIndex, sound := range sounds {
+		soundScore := 0
+		for _, alias := range sound.Aliases {
+			alias = normalize(alias)
+			if len(alias) < minimumFuzzySoundNameLength {
+				continue
+			}
+
+			candidate := alias
+			if len(name) < len(alias) {
+				candidate = alias[:len(name)]
+			}
+			soundScore = max(soundScore, fuzzy.Ratio(candidate, name))
+		}
+
+		if soundScore > bestScore {
+			secondBestScore = bestScore
+			bestScore = soundScore
+			bestSoundIndex = soundIndex
+			continue
+		}
+		secondBestScore = max(secondBestScore, soundScore)
+	}
+
+	if bestSoundIndex == -1 || bestScore < minimumFuzzySoundScore || bestScore-secondBestScore < minimumFuzzySoundScoreGap {
+		return store.Sound{}, false
+	}
+
+	log.Debug("fuzzy sound match", log.Int("score", bestScore), log.String("name", name))
+	return sounds[bestSoundIndex], true
 }
